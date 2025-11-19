@@ -187,9 +187,9 @@
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
 \hypersetup{
-  pdftitle={La Palma Earthquakes},
-  pdfauthor={Steve Purves; Rowan Cockett},
-  pdfkeywords={La Palma, Earthquakes},
+  pdftitle={Revisiting the SAFE Framework in the Statcast Era: A Modernized Approach to Evalutating MLB Infield Defense},
+  pdfauthor={Tyler McCord},
+  pdfkeywords={Bayesian modeling, Sports analytics, Baseball defense},
   colorlinks=true,
   linkcolor={blue},
   filecolor={Maroon},
@@ -198,148 +198,102 @@
   pdfcreator={LaTeX via pandoc}}
 
 
-\journalname{Earth and Space Science}
 
 \draftfalse
 
 \begin{document}
-\title{La Palma Earthquakes}
+\title{Revisiting the SAFE Framework in the Statcast Era: A Modernized
+Approach to Evalutating MLB Infield Defense}
 
-\authors{Steve Purves\affil{1}, Rowan Cockett\affil{1}}
-\affiliation{1}{Curvenote, }
-\correspondingauthor{Steve Purves}{steve@curvenote.com}
+\authors{Tyler McCord\affil{1}}
+\affiliation{1}{Amherst College, }
+\correspondingauthor{Tyler McCord}{tmccord26@amherst.edu}
 
 
 \begin{abstract}
-In September 2021, a significant jump in seismic activity on the island
-of La Palma (Canary Islands, Spain) signaled the start of a volcanic
-crisis that still continues at the time of writing. Earthquake data is
-continually collected and published by the Instituto Geográphico
-Nacional (IGN). \ldots{}
+High resolution tracking data has transformed player evaluation in Major
+League Baseball (MLB), enabling high-level analysis of player
+performance. While public analyses on batting and pitching have advanced
+rapidly, defensive evaluation has been comparatively underdeveloped. The
+SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by
+Jensen et al. (2009), was the first effort in the public sphere to
+evaluate defense as a continuous space. We revisit the SAFE framework
+using modern Statcast data with an emphasis on infield defense, a
+notable struggle for prior defensive metrics.
 \end{abstract}
 
-\section*{Plain Language Summary}
-Earthquake data for the island of La Palma from the September 2021
-eruption is found \ldots{}
 
 
 
 
 \section{Introduction}\label{introduction}
 
-\textsubscript{Source:
-\href{https://tmccord26.github.io/statcast-SAFE-infield/index.qmd.html}{Article
-Notebook}}
+The evaluation of batting and pitching in baseball has been at the
+forefront of sports analytics for decades, mostly due to their discrete
+nature and the availability of relevant, quantifiable data. It is
+relatively simple to measure the outcome of a plate appearance or a
+pitch, making it easier to develop metrics that accurately reflect
+player performance in these areas. In contrast, defensive evaluation has
+lagged behind due to the continuous, spatio-temporal nature of fielding.
 
-\phantomsection\label{cell-fig-timeline}
-\begin{figure}[H]
+Still, Major League Baseball (MLB) organizations are faced with
+important decisions regarding defense, such as positioning players,
+making defensive substitutions, and evaluating trade-offs between
+offensive and defensive abilities. At the end of each season, MLB issues
+Gold Glove awards to the best defenders at each position, highlighting
+the importance of defense in the game.
 
-\centering{
+Before the advent of high-resolution player tracking data, teams relied
+on simple defensive metrics such as fielding percentage, which
+calculates the percentage of plays a fielder successfully makes, and
+errors, which count the number of plays that the player does not make
+that the average fielder would. However, these metrics fail to capture
+the full scope of a player's defensive contributions, as they do not
+account for factors such as range, positioning, and the difficulty of
+plays made.
 
-\pandocbounded{\includegraphics[keepaspectratio]{index_files/figure-pdf/fig-timeline-1.pdf}}
+Statisticians have tried to find ways to quantify the nuances of
+defense. In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating
+(UZR) metric, which attempted to evaluate defense by dividing the field
+into discrete zones and assigning run values to plays made or not made
+within those zones. This was the first run-based attempt at quantifying
+defense over a continuous space. In 2009, Jensen et al. (2009)
+introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework,
+which built upon UZR by using a hierarchical Bayesian model to evaluate
+defense as a continuous surface. The SAFE framework uses estimates of
+player location, ball location, and ball velocity to model the
+probability of a fielder making a play on a batted ball, allowing for a
+more nuanced evaluation of defensive performance. The hierarchical
+Bayesian structure also allows for the sharing of information across
+players and positions, improving estimates for players with limited
+data. However, this model is limited by the accuracy and reliability of
+the underlying data used to estimate player and ball locations. These
+data, provided by Baseball Info Solutions, used hand-annotated video
+footage to estimate ball location and velocity. Even then, the starting
+location of the fielder at a given position was estimated by the authors
+by using the average location of balls caught by that position.
 
-}
+Notably, the results of Jensen et al. (2009) showed that the
+autocorrelation of defensive metrics from year to year was quite low,
+most notably for infielders. This shortcoming suggests that the original
+SAFE model performed poorly in evaluating infield defense, relative to
+outfield defense.
 
-\caption{\label{fig-timeline}Timeline of recent earthquakes on La Palma}
+Since the publication of the SAFE framework, MLB has introduced
+Statcast, a high-resolution player tracking system that uses a
+combination of radar and camera technology to track the movement of
+players and the ball in real-time. Statcast provides a wealth of data
+that was previously unavailable, including precise measurements of
+player and ball locations, velocities, and trajectories. This data has
+the potential to revolutionize defensive evaluation in baseball,
+allowing for more accurate and reliable estimates of defensive
+performance.
 
-\end{figure}%
+In this paper, we modernize the original SAFE framework for infielders
+using Statcast data. We also pose an improved model, with additional
+covariates that were not available in the original SAFE framework.
 
-\textsubscript{Source:
-\href{https://tmccord26.github.io/statcast-SAFE-infield/index.qmd.html}{Article
-Notebook}}
-
-\textsubscript{Source:
-\href{https://tmccord26.github.io/statcast-SAFE-infield/index.qmd.html}{Article
-Notebook}}
-
-Based on data up to and including 1971, eruptions on La Palma happen
-every 79.8 years on average.
-
-Studies of the magma systems feeding the volcano, such as Marrero et al.
-(2019), have proposed that there are two main magma reservoirs feeding
-the Cumbre Vieja volcano; one in the mantle (30-40km depth) which
-charges and in turn feeds a shallower crustal reservoir (10-20km depth).
-
-Eight eruptions have been recorded since the late 1400s
-(Figure~\ref{fig-timeline}).
-
-Data and methods are discussed in Section~\ref{sec-data-methods}.
-
-Let \(x\) denote the number of eruptions in a year. Then, \(x\) can be
-modeled by a Poisson distribution
-
-\begin{equation}\phantomsection\label{eq-poisson}{
-p(x) = \frac{e^{-\lambda} \lambda^{x}}{x !}
-}\end{equation}
-
-where \(\lambda\) is the rate of eruptions per year. Using
-Equation~\ref{eq-poisson}, the probability of an eruption in the next
-\(t\) years can be calculated.
-
-\begin{longtable}[]{@{}ll@{}}
-\caption{Recent historic eruptions on La
-Palma}\label{tbl-history}\tabularnewline
-\toprule\noalign{}
-Name & Year \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-Name & Year \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-Current & 2021 \\
-Teneguía & 1971 \\
-Nambroque & 1949 \\
-El Charco & 1712 \\
-Volcán San Antonio & 1677 \\
-Volcán San Martin & 1646 \\
-Tajuya near El Paso & 1585 \\
-Montaña Quemada & 1492 \\
-\end{longtable}
-
-Table~\ref{tbl-history} summarises the eruptions recorded since the
-colonization of the islands by Europeans in the late 1400s.
-
-\begin{figure}
-
-\centering{
-
-\pandocbounded{\includegraphics[keepaspectratio]{images/la-palma-map.png}}
-
-}
-
-\caption{\label{fig-map}Map of La Palma}
-
-\end{figure}%
-
-La Palma is one of the west most islands in the Volcanic Archipelago of
-the Canary Islands (Figure~\ref{fig-map}).
-
-\begin{figure}[H]
-
-\centering{
-
-\pandocbounded{\includegraphics[keepaspectratio]{index_files/figure-latex/notebooks-explore-earthquakes-fig-spatial-plot-output-1.png}}
-
-}
-
-\caption{\label{fig-spatial-plot}Locations of earthquakes on La Palma
-since 2017}
-
-\end{figure}%
-
-\textsubscript{Source:
-\href{https://tmccord26.github.io/statcast-SAFE-infield/notebooks/explore-earthquakes-preview.html\#cell-fig-spatial-plot}{Explore
-Earthquakes}}
-
-Figure~\ref{fig-spatial-plot} shows the location of recent Earthquakes
-on La Palma.
-
-\section{Data \& Methods}\label{sec-data-methods}
-
-\section{Conclusion}\label{conclusion}
+\section{Data}\label{data}
 
 \section*{References}\label{references}
 \addcontentsline{toc}{section}{References}
@@ -348,12 +302,11 @@ on La Palma.
 \begin{CSLReferences}{1}{0}
 \vspace{1em}
 
-\bibitem[\citeproctext]{ref-marrero2019}
-Marrero, J., García, A., Berrocoso, M., Llinares, Á., Rodríguez-Losada,
-A., \& Ortiz, R. (2019). Strategies for the development of volcanic
-hazard maps in monogenetic volcanic fields: The example of {La} {Palma}
-({Canary} {Islands}). \emph{Journal of Applied Volcanology}, \emph{8}.
-\url{https://doi.org/10.1186/s13617-019-0085-5}
+\bibitem[\citeproctext]{ref-jensen_2009}
+Jensen, S. T., Shirley, K. E., \& Wyner, A. J. (2009). Bayesball: A
+bayesian hierarchical model for evaluating fielding in major league
+baseball. \emph{The Annals of Applied Statistics}, \emph{3}(2),
+491--520. \url{https://doi.org/10.1214/08-AOAS228}
 
 \end{CSLReferences}
 
