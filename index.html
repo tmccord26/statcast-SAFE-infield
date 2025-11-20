@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.11">
+<meta name="generator" content="quarto-1.9.12">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Tyler McCord">
-<meta name="dcterms.date" content="2025-11-19">
+<meta name="dcterms.date" content="2025-11-20">
 <meta name="keywords" content="Bayesian modeling, Sports analytics, Baseball defense">
 
 <title>Revisiting the SAFE Framework in the Statcast Era: A Modernized Approach to Evalutating MLB Infield Defense</title>
@@ -54,7 +54,7 @@ div.csl-indent {
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-a5dfee7ccc7f20503a6465e15a2cff9c.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-cdaacfc258cb6f151192107f105ac881.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-0a61af393cc41664e89a7addda21b354.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -67,14 +67,14 @@ div.csl-indent {
 
 
 <meta name="citation_title" content="Revisiting the SAFE Framework in the Statcast Era: A Modernized Approach to Evalutating MLB Infield Defense">
-<meta name="citation_abstract" content="High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by @jensen_2009, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics.
+<meta name="citation_abstract" content="High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by @jensen_2009, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics. [Placeholder for results]
 ">
 <meta name="citation_keywords" content="Bayesian modeling, Sports analytics, Baseball defense">
 <meta name="citation_author" content="Tyler McCord">
-<meta name="citation_publication_date" content="2025-11-19">
-<meta name="citation_cover_date" content="2025-11-19">
+<meta name="citation_publication_date" content="2025-11-20">
+<meta name="citation_cover_date" content="2025-11-20">
 <meta name="citation_year" content="2025">
-<meta name="citation_online_date" content="2025-11-19">
+<meta name="citation_online_date" content="2025-11-20">
 <meta name="citation_language" content="en">
 <meta name="citation_reference" content="citation_title=Bayesball: A bayesian hierarchical model for evaluating fielding in major league baseball;,citation_author=Shane T Jensen;,citation_author=Kenneth E Shirley;,citation_author=Abraham J Wyner;,citation_publication_date=2009;,citation_cover_date=2009;,citation_year=2009;,citation_fulltext_html_url=https://projecteuclid.org/journals/annals-of-applied-statistics/volume-3/issue-2/Bayesball--A-Bayesian-hierarchical-model-for-evaluating-fielding-in/10.1214/08-AOAS228.full;,citation_issue=2;,citation_doi=10.1214/08-AOAS228;,citation_volume=3;,citation_journal_title=The Annals of Applied Statistics;">
 </head>
@@ -110,7 +110,7 @@ div.csl-indent {
                 <div>
             <div class="quarto-title-meta-heading">Published</div>
             <div class="quarto-title-meta-contents">
-              <p class="date">November 19, 2025</p>
+              <p class="date">November 20, 2025</p>
             </div>
           </div>
           
@@ -124,7 +124,7 @@ div.csl-indent {
     <div>
       <div class="abstract">
         <div class="block-title">Abstract</div>
-        <p>High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span>, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics.</p>
+        <p>High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span>, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics. [Placeholder for results]</p>
       </div>
     </div>
 
@@ -162,14 +162,26 @@ div.csl-indent {
 <h2 data-number="1" class="anchored" data-anchor-id="introduction"><span class="header-section-number">1</span> Introduction</h2>
 <p>The evaluation of batting and pitching in baseball has been at the forefront of sports analytics for decades, mostly due to their discrete nature and the availability of relevant, quantifiable data. It is relatively simple to measure the outcome of a plate appearance or a pitch, making it easier to develop metrics that accurately reflect player performance in these areas. In contrast, defensive evaluation has lagged behind due to the continuous, spatio-temporal nature of fielding.</p>
 <p>Still, Major League Baseball (MLB) organizations are faced with important decisions regarding defense, such as positioning players, making defensive substitutions, and evaluating trade-offs between offensive and defensive abilities. At the end of each season, MLB issues Gold Glove awards to the best defenders at each position, highlighting the importance of defense in the game.</p>
-<p>Before the advent of high-resolution player tracking data, teams relied on simple defensive metrics such as fielding percentage, which calculates the percentage of plays a fielder successfully makes, and errors, which count the number of plays that the player does not make that the average fielder would. However, these metrics fail to capture the full scope of a player’s defensive contributions, as they do not account for factors such as range, positioning, and the difficulty of plays made.</p>
-<p>Statisticians have tried to find ways to quantify the nuances of defense. In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating (UZR) metric, which attempted to evaluate defense by dividing the field into discrete zones and assigning run values to plays made or not made within those zones. This was the first run-based attempt at quantifying defense over a continuous space. In 2009, <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span> introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework, which built upon UZR by using a hierarchical Bayesian model to evaluate defense as a continuous surface. The SAFE framework uses estimates of player location, ball location, and ball velocity to model the probability of a fielder making a play on a batted ball, allowing for a more nuanced evaluation of defensive performance. The hierarchical Bayesian structure also allows for the sharing of information across players and positions, improving estimates for players with limited data. However, this model is limited by the accuracy and reliability of the underlying data used to estimate player and ball locations. These data, provided by Baseball Info Solutions, used hand-annotated video footage to estimate ball location and velocity. Even then, the starting location of the fielder at a given position was estimated by the authors by using the average location of balls caught by that position.</p>
-<p>Notably, the results of <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span> showed that the autocorrelation of defensive metrics from year to year was quite low, most notably for infielders. This shortcoming suggests that the original SAFE model performed poorly in evaluating infield defense, relative to outfield defense.</p>
+<p>Before the advent of high-resolution player tracking data, teams relied on simple defensive metrics such as fielding percentage, which calculates the percentage of plays a fielder successfully makes, and errors, which count the number of plays that the player does not make that the average fielder would. However, errors are prone to subjectivity, as they depend primarily on the official scorer’s judgement. These metrics also fail to capture the full scope of a player’s defensive contributions, as they do not account for factors such as range, positioning, and the difficulty of plays made.</p>
+<p>Statisticians have tried to find ways to quantify the nuances of defense. In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating (UZR) metric, which attempted to evaluate defense by dividing the field into discrete zones and assigning run values to plays made or not made within those zones. This run-based approach allowed statisticians to understand the stakes of each defensive play.</p>
+<p>In 2009, <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span> introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework, which built upon UZR by using a hierarchical Bayesian model to evaluate defense as a continuous surface. The SAFE framework uses estimates of player location, ball location, and ball velocity to model the probability of a fielder making a play on a batted ball, allowing for a more nuanced evaluation of defensive performance. The model combines the probability of a made play with the run consequences of that play to estimate the overall defensive contribution of a player in terms of runs saved or allowed. The hierarchical Bayesian structure also allows for the sharing of information across players and positions, improving estimates for players with limited data. However, this model is limited by the accuracy and reliability of the underlying data used to estimate player and ball locations. These data, provided by Baseball Info Solutions, used hand-annotated video footage to estimate ball location and velocity. Even then, the starting location of the fielder at a given position was estimated by the authors by using the average location of balls caught by that position.</p>
+<p>Notably, the results of <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span> showed that the autocorrelation of defensive metrics from year to year was quite low for infielders. This shortcoming suggests that the original SAFE model performed poorly in evaluating infield defense, relative to outfield defense.</p>
 <p>Since the publication of the SAFE framework, MLB has introduced Statcast, a high-resolution player tracking system that uses a combination of radar and camera technology to track the movement of players and the ball in real-time. Statcast provides a wealth of data that was previously unavailable, including precise measurements of player and ball locations, velocities, and trajectories. This data has the potential to revolutionize defensive evaluation in baseball, allowing for more accurate and reliable estimates of defensive performance.</p>
-<p>In this paper, we modernize the original SAFE framework for infielders using Statcast data. We also pose an improved model, with additional covariates that were not available in the original SAFE framework.</p>
+<p>In this paper, we modernize the original SAFE framework for infielders using three years Statcast data (2023-2025). We perform a reproduction of the original SAFE model using the new data, and compare the validity of these results to those of <span class="citation" data-cites="jensen_2009">Jensen, Shirley, and Wyner (<a href="#ref-jensen_2009" role="doc-biblioref">2009</a>)</span>. We also pose an improved model, with additional covariates that were not available in the original SAFE framework.</p>
 </section>
 <section id="data" class="level2" data-number="2">
 <h2 data-number="2" class="anchored" data-anchor-id="data"><span class="header-section-number">2</span> Data</h2>
+<p>Our evaluation of infield defense is based on Statcast data from 2023-2025. Although Statcast data has been publicly available since 2015, we focus on the most recent three years because the infield “shift”, a defensive strategy where infielders position themselves in extreme positions based on the batter’s hitting tendencies, was banned following the 2022 season. We believe that narrowing the frame of our analysis to non-shifted seasons will yield more accurate estimates due to more consistent estimates for fielder locations. We obtain data on batted balls through the <code>baseballr</code> package in R, which provides a convenient interface for scraping Statcast data from MLB’s public API. The result is an .Rds file for each year of interest where each observation corresponds to a single batted ball in play (BIP) event. Further, as an extension of the original SAFE framework, we extract information on individual player positioning before each pitch by using the “Fielder Positioning” page on Baseball Savant. The location for each infielder on a given play is not publicly available</p>
+<p>For each batted ball in play, we extract the relevant information needed to identify the fielder responsible for making a play, the location and velocity of the batted ball, and the outcome of the play.</p>
+<p>Using these data, we derive the following factors for each batted ball:</p>
+<ul>
+<li><strong>successful_play</strong>: A binary indicator of whether the fielder successfully made a play on the batted ball (1 = successful play, 0 = unsuccessful play). For ground balls, this is defined as whether the fielder was able to field the ball and record at least one out. For fly balls/line drives, this is defined as whether the fielder was able to catch the ball before it touched the ground.</li>
+<li><strong>location_x, location_y</strong>: The (x, y) coordinates of the batted ball when it reaches the fielder’s location, measured in feet from home plate. The origin (0, 0) is at home plate, with the positive x-axis extending towards first base and the positive y-axis extending towards second base.</li>
+<li><strong>spray_angle</strong>: Derived from the (x, y) coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line represents 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees.</li>
+<li><strong>launch_velocity</strong>: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).</li>
+<li><strong>out_{pos}</strong>: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.</li>
+</ul>
+<p>The resulting dataset contains 372,260 batted balls in play from the 2023-2025 seasons.</p>
 </section>
 <section id="references" class="level2 unnumbered">
 <h2 class="unnumbered anchored" data-anchor-id="references">References</h2>
