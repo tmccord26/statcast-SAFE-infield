@@ -4,6 +4,9 @@
 /.quarto/
 /_manuscript
 
+.csv
+.rds
+
 /agujournal2019.cls
 /trackchanges.sty
 .Rproj.user
