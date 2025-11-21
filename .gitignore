@@ -6,7 +6,7 @@
 
 .csv
 .rds
-
+/statcast_data/*
 /agujournal2019.cls
 /trackchanges.sty
 .Rproj.user
