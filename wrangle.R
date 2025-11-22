@@ -6,6 +6,7 @@ wrangle_bip_year <- function(year) {
   bip <- readRDS(paste0("statcast_data/statcast_batted_balls_", year, ".rds"))
   
   bip_wrangled <- bip |>
+    filter(!is.na(bb_type)) |>
     mutate(
       game_year = year(game_date),
       successful_play = case_when(
@@ -18,14 +19,45 @@ wrangle_bip_year <- function(year) {
       out_2b = ifelse(successful_play & hit_location == 4, 1, 0),
       out_3b = ifelse(successful_play & hit_location == 5, 1, 0),
       out_ss = ifelse(successful_play & hit_location == 6, 1, 0),
+      play_made_by = case_when(
+        out_1b == 1 ~ "1B",
+        out_2b == 1 ~ "2B",
+        out_3b == 1 ~ "3B",
+        out_ss == 1 ~ "SS",
+        TRUE ~ "Other"
+      ),
       location_x = 2.5 * (hc_x - 125.42),
       location_y = 2.5 * (198.27 - hc_y),
       spray_angle = atan(location_x / location_y) * 180 / pi
     ) |>
-    select(game_year, events, bb_type, successful_play, fielder_3:fielder_6, out_1b:out_ss, location_x, location_y, spray_angle, launch_speed)
+    select(game_year, events, bb_type, successful_play, play_made_by, fielder_3:fielder_6, out_1b:out_ss, location_x, location_y, spray_angle, launch_speed)
+
+    bip_wrangled <- get_fielder_positions(bip_wrangled)
+  }
+
+get_fielder_positions <- function(bip_data) {
+  
+  # get the average position of every completed play by position
+  
+  position_locations <- bip_data |>
+    filter(play_made_by != "Other") |>
+    group_by(play_made_by) |>
+    summarise(
+      pos_x = mean(location_x, na.rm = TRUE),
+      pos_y = mean(location_y, na.rm = TRUE)
+    )
+  
+  return(bip_data)
 }
 
 # Create a full dataset for all three years
 bip_2023 <- wrangle_bip_year(2023)
 bip_2024 <- wrangle_bip_year(2024)
 bip_2025 <- wrangle_bip_year(2025)
+
+bip_full <- bind_rows(bip_2023, bip_2024, bip_2025)
+
+player_positions <- get_fielder_positions(bip_full)
+
+write_rds(bip_full, "statcast_data/bip_clean.rds")
+write_rds(player_positions, "statcast_data/player_positions.rds")

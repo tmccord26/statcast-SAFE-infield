@@ -14,11 +14,17 @@ bibliography: references.bib
 number-sections: true
 ---
 
+```{r}
+library(tidyverse)
+library(kableExtra)
+```
+
+
 ## Introduction
 
 The evaluation of batting and pitching in baseball has been at the forefront of sports analytics for decades, mostly due to their discrete nature and the availability of relevant, quantifiable data.
 It is relatively simple to measure the outcome of a plate appearance or a pitch, making it easier to develop metrics that accurately reflect player performance in these areas.
-In contrast, defensive evaluation has lagged behind due to the continuous, spatio-temporal nature of fielding. 
+In contrast, defensive evaluation has lagged behind due to the continuous, spatiotemporal nature of fielding. 
 
 Still, Major League Baseball (MLB) organizations are faced with important decisions regarding defense, such as positioning players, making defensive substitutions, and evaluating trade-offs between offensive and defensive abilities.
 At the end of each season, MLB issues Gold Glove awards to the best defenders at each position, highlighting the importance of defense in the game.
@@ -28,7 +34,7 @@ However, errors are prone to subjectivity, as they depend primarily on the offic
 These metrics also fail to capture the full scope of a player's defensive contributions, as they do not account for factors such as range, positioning, and the difficulty of plays made.
 
 Statisticians have tried to find ways to quantify the nuances of defense.
-In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating (UZR) metric, which attempted to evaluate defense by dividing the field into discrete zones and assigning run values to plays made or not made within those zones.
+In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating (UZR) metric, which attempted to evaluate defense by dividing the field into discrete zones and assigning run values to plays made or not made within those zones (@uzr_fangraphs).
 This run-based approach allowed statisticians to understand the stakes of each defensive play.
 
 In 2009, @jensen_2009 introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework, which built upon UZR by using a hierarchical Bayesian model to evaluate defense as a continuous surface.
@@ -42,7 +48,7 @@ Even then, the starting location of the fielder at a given position was estimate
 Notably, the results of @jensen_2009 showed that the autocorrelation of defensive metrics from year to year was quite low for infielders. 
 This shortcoming suggests that the original SAFE model performed poorly in evaluating infield defense, relative to outfield defense.
 
-Since the publication of the SAFE framework, MLB has introduced Statcast, a high-resolution player tracking system that uses a combination of radar and camera technology to track the movement of players and the ball in real-time.
+Since the publication of the SAFE framework, MLB has introduced Statcast, a high-resolution player tracking system that uses a combination of radar and camera technology to track the movement of players and the ball in real-time (need to find a citation).
 Statcast provides a wealth of data that was previously unavailable, including precise measurements of player and ball locations, velocities, and trajectories.
 This data has the potential to revolutionize defensive evaluation in baseball, allowing for more accurate and reliable estimates of defensive performance.
 
@@ -57,20 +63,78 @@ Although Statcast data has been publicly available since 2015, we focus on the m
 We believe that narrowing the frame of our analysis to non-shifted seasons will yield more accurate estimates due to more consistent estimates for fielder locations.
 We obtain data on batted balls through the `baseballr` package in R, which provides a convenient interface for scraping Statcast data from MLB's public API.
 The result is an .Rds file for each year of interest where each observation corresponds to a single batted ball in play (BIP) event.
-Further, as an extension of the original SAFE framework, we extract information on individual player positioning before each pitch by using the "Fielder Positioning" page on Baseball Savant. 
-The location for each infielder on a given play is not publicly available 
+Further, as an extension of the original SAFE framework, we extract information on individual player positioning before each pitch by using the "Fielder Positioning" page on Baseball Savant (@savant_positioning). 
+The location for each infielder on a given play is not publicly available.
 
 For each batted ball in play, we extract the relevant information needed to identify the fielder responsible for making a play, the location and velocity of the batted ball, and the outcome of the play.
 
 Using these data, we derive the following factors for each batted ball:
 
 - **successful_play**: A binary indicator of whether the fielder successfully made a play on the batted ball (1 = successful play, 0 = unsuccessful play). For ground balls, this is defined as whether the fielder was able to field the ball and record at least one out. For fly balls/line drives, this is defined as whether the fielder was able to catch the ball before it touched the ground.
+- **play_made_by**: The position (1B, 2B, SS, 3B) of the fielder who made the play on the batted ball (Other, if play is not successful or play is made by another position).
 - **location_x, location_y**: The (x, y) coordinates of the batted ball when it reaches the fielder's location, measured in feet from home plate. The origin (0, 0) is at home plate, with the positive x-axis extending towards first base and the positive y-axis extending towards second base.
-- **spray_angle**: Derived from the (x, y) coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line represents 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees. 
+- **spray_angle**: Derived from the (x, y) coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line is 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees. 
 - **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 - **out_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
 
-The resulting dataset contains 372,260 batted balls in play from the 2023-2025 seasons. 
+The resulting dataset contains 16 variables from 372,254 batted balls in play from the 2023-2025 seasons. 
+
+
+```{r}
+#| label: tbl-bip-summary
+#| tbl-cap: "Summary statistics for batted balls in play from 2023-2025 seasons."
+
+
+bip_full <- read_rds("statcast_data/bip_clean.rds")
+
+bip_full |>
+  group_by(game_year) |>
+  summarise(
+    total_bip = n(),
+    ground_balls = sum(bb_type == "ground_ball", na.rm = TRUE),
+    line_drives = sum(bb_type == "line_drive", na.rm = TRUE),
+    fly_balls = sum(bb_type == "fly_ball", na.rm = TRUE),
+    pop_ups = sum(bb_type == "popup", na.rm = TRUE),
+    outs_1b = sum(out_1b == 1, na.rm = TRUE),
+    outs_2b = sum(out_2b == 1, na.rm = TRUE),
+    outs_ss = sum(out_ss == 1, na.rm = TRUE),
+    outs_3b = sum(out_3b == 1, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  kable(
+    booktabs = TRUE,
+    col.names = c("Year", "Total BIP", "Ground Balls", "Line Drives", "Fly Balls", "Pop Ups", "Outs at 1B", "Outs at 2B", "Outs at SS", "Outs at 3B"),
+    )
+```
+
+@tbl-bip-summary shows summary statistics for batted balls in play from the 2023-2025 seasons.
+The proportion of batted balls by type and the number of outs recorded at each infield position are consistent across the three seasons.
+
+```{r}
+#| label: tbl-continuous-summary
+#| tbl-cap: "Summary statistics for batted ball variables in the batted ball dataset."
+
+
+continuous_vars <- c("launch_speed", "spray_angle", "location_x", "location_y")
+
+bip_full |>
+  select(continuous_vars) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "value") |>
+  mutate(variable = factor(variable, levels = continuous_vars,
+                           labels = c("Exit Velocity (mph)", "Spray Angle (degrees)", "Location X (ft)", "Location Y (ft)"))) |>
+  group_by(variable) |>
+  summarize(
+    mean = round(mean(value, na.rm = TRUE), 2),
+    sd = round(sd(value, na.rm = TRUE), 2),
+    min = round(min(value, na.rm = TRUE), 2),
+    max = round(max(value, na.rm = TRUE), 2)
+  ) |>
+  kable(
+    col.names = c("Variable", "Mean", "SD", "Min", "Max")
+  )
+```
+
+Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position.
 
 
 
