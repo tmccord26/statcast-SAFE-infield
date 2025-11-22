@@ -53,8 +53,14 @@ Statcast provides a wealth of data that was previously unavailable, including pr
 This data has the potential to revolutionize defensive evaluation in baseball, allowing for more accurate and reliable estimates of defensive performance.
 
 In this paper, we modernize the original SAFE framework for infielders using three years Statcast data (2023-2025).
-We perform a reproduction of the original SAFE model using the new data, and compare the validity of these results to those of @jensen_2009.
-We also pose an improved model, with additional covariates that were not available in the original SAFE framework.
+We propose three models:
+
+1. A reproduction of the original SAFE model using Statcast data.
+2. A semi-reproduction of the original SAFE model using updated player-specific positioning data.
+3. An improved model that incorporates player-specific positioning data and additional covariates to better capture the nuances of infield defense.
+
+We compare the results of these models to assess the impact of using high-resolution tracking data and updated positioning information on defensive evaluation.
+We also evaluate the year-to-year reliability of our models to assess their effectiveness in capturing true defensive ability.
 
 ## Data
 
@@ -65,6 +71,8 @@ We obtain data on batted balls through the `baseballr` package in R, which provi
 The result is an .Rds file for each year of interest where each observation corresponds to a single batted ball in play (BIP) event.
 Further, as an extension of the original SAFE framework, we extract information on individual player positioning before each pitch by using the "Fielder Positioning" page on Baseball Savant (@savant_positioning). 
 The location for each infielder on a given play is not publicly available.
+However, Baseball Savant provides average positioning data for each player at each position based on all batted balls successfully fielded by that position.
+We extract these data by downloading the relevant CSV files from the Baseball Savant website. 
 
 For each batted ball in play, we extract the relevant information needed to identify the fielder responsible for making a play, the location and velocity of the batted ball, and the outcome of the play.
 
@@ -134,8 +142,25 @@ bip_full |>
   )
 ```
 
-Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position.
 
+```{r}
+#| label: fig-fielder-positioning
+#| fig-cap: "Average fielder positioning for infielders (1B, 2B, SS, 3B) based on batted balls successfully fielded from 2023-2025 seasons."
+
+safe_positioning <- read_rds("statcast_data/player_positioning/safe_positioning.rds")
+
+ggplot() +
+  geom_point(data = bip_full |> filter(play_made_by != "Other"), aes(x = location_x, y = location_y), alpha = 0.1) +
+  geom_point(data = safe_positioning, aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  facet_wrap(~ play_made_by) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+```
+
+[Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position. @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
 
 
 ## References {.unnumbered}

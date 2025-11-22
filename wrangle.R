@@ -47,7 +47,7 @@ get_fielder_positions <- function(bip_data) {
       pos_y = mean(location_y, na.rm = TRUE)
     )
   
-  return(bip_data)
+  return(position_locations)
 }
 
 # Create a full dataset for all three years
@@ -57,7 +57,7 @@ bip_2025 <- wrangle_bip_year(2025)
 
 bip_full <- bind_rows(bip_2023, bip_2024, bip_2025)
 
-player_positions <- get_fielder_positions(bip_full)
+player_positions <- get_fielder_positions(bip_clean)
 
 write_rds(bip_full, "statcast_data/bip_clean.rds")
-write_rds(player_positions, "statcast_data/player_positions.rds")
+write_rds(player_positions, "statcast_data/player_positioning/safe_positioning.rds")
