@@ -85,7 +85,7 @@ Using these data, we derive the following factors for each batted ball:
 - **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 - **out_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
 
-The resulting dataset contains 16 variables from 372,254 batted balls in play from the 2023-2025 seasons. 
+The resulting dataset contains 16 variables from 339,230 batted balls in play in fair territory from the 2023-2025 seasons. 
 
 
 ```{r}
@@ -115,7 +115,7 @@ bip_full |>
     )
 ```
 
-@tbl-bip-summary shows summary statistics for batted balls in play from the 2023-2025 seasons.
+@tbl-bip-summary shows summary statistics for batted balls in play hit into fair territory from the 2023-2025 seasons.
 The proportion of batted balls by type and the number of outs recorded at each infield position are consistent across the three seasons.
 
 ```{r}
@@ -161,6 +161,120 @@ ggplot() +
 ```
 
 [Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position. @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
+
+## Methods
+
+To describe the modernization of the SAFE framework, we start with a technical overview of the original model from @jensen_2009.
+
+The first step is to estimate the probability that a fielder makes a successful play on a batted ball for each combination of year, position, and batted ball type (ground ball, line drive, fly ball/pop up).
+
+### Fly Balls and Line Drives
+
+For fly balls and line drives, a successful play is defined as a play in which the fielder catches the ball before it touches the ground.
+Then, we can define each batted ball $j$  as a Bernoulli trial with outcome $S_{ij} = 1$ if player $j$ made a successful play and $S_{ij} = 0$ otherwise.
+Then, we define:
+$$
+S_{ij} = \text{Bernoulli}(p_{ij})
+$$
+where $p_{ij}$ is the probability that fielder $i$ makes a successful play on batted ball $j$.
+
+We model this probability as a function of the distance that player $i$ must travel to reach the location of batted ball $j$ ($D_{ij}$), the velocity of the batted ball ($V_{ij}$), and an indicator for the direction that the fielder must travel to make the play ($F_{ij} = 1$ for forward, $F_{ij} = 0$ for backward):
+
+$$
+p_{ij} = \Phi(\beta_{i0} + \beta_{i1} D_{ij} + \beta_{i2} D_{ij} F_{ij} + \beta_{i3} D_{ij} V_{ij} + \beta_{i4} D_{ij} V_{ij} F_{ij})
+$$
+
+where $\Phi$ is the standard normal cumulative distribution function (CDF) and $\beta_{i0}, \beta_{i1}, \beta_{i2}, \beta_{i3}, \beta_{i4}$ are player-specific coefficients that capture the effect of each covariate on the probability of making a successful play.
+
+```{r}
+
+# --------------------- FLY BALL/POP UP MODEL FITTING ---------------------
+bip_fb_pu <- bip_full |>
+  filter(bb_type %in% c("fly_ball", "popup"))
+
+fit_position_model <- function(bip_data, year, positioning_data, position) {
+  # Filter positioning data for the relevant year and position
+  pos <- positioning_data |>
+    filter(play_made_by == !!position)
+  
+  if (nrow(pos) != 1) {
+    stop("Positioning data must have exactly one row for each year/position combination")
+  }
+  
+  # Merge position coordinates onto play data, filter to year, and compute features
+  play_data <- bip_data |>
+    filter(game_year == year) |>
+    mutate(
+      pos_x = pos$pos_x,
+      pos_y = pos$pos_y,
+      d_pos = sqrt(pos_x^2 + pos_y^2),
+      d_ball = sqrt(location_x^2 + location_y^2),
+      dist_to_ball = sqrt((location_x - pos_x)^2 + (location_y - pos_y)^2),
+      forward = ifelse(d_pos > d_ball, 1, 0)
+    )
+
+  # Create the outcome variable name dynamically
+  outcome_var <- paste0("out_", str_to_lower(position))
+  formula_str <- paste0(
+    outcome_var, " ~ dist_to_ball + dist_to_ball:forward + dist_to_ball:launch_speed + dist_to_ball:launch_speed:forward"
+  )
+
+  # Pre bayesian model 
+  model <- glm(
+    formula = as.formula(formula_str),
+    data = play_data,
+    family = binomial(link = "probit")
+  )
+  
+  return(model)
+}
+
+```
+
+
+```{r}
+
+# --------------------- LINE DRIVE MODEL FITTING ---------------------
+bip_fb_pu <- bip_full |>
+  filter(bb_type == "line_drive")
+
+fit_position_model <- function(bip_data, year, positioning_data, position) {
+  # Filter positioning data for the relevant year and position
+  pos <- positioning_data |>
+    filter(play_made_by == !!position)
+  
+  if (nrow(pos) != 1) {
+    stop("Positioning data must have exactly one row for each year/position combination")
+  }
+  
+  # Merge position coordinates onto play data, filter to year, and compute features
+  play_data <- bip_data |>
+    filter(game_year == year) |>
+    mutate(
+      pos_x = pos$pos_x,
+      pos_y = pos$pos_y,
+      d_pos = sqrt(pos_x^2 + pos_y^2),
+      d_ball = sqrt(location_x^2 + location_y^2),
+      dist_to_ball = sqrt((location_x - pos_x)^2 + (location_y - pos_y)^2),
+      forward = ifelse(d_pos > d_ball, 1, 0)
+    )
+
+  # Create the outcome variable name dynamically
+  outcome_var <- paste0("out_", str_to_lower(position))
+  formula_str <- paste0(
+    outcome_var, " ~ dist_to_ball + dist_to_ball:forward + dist_to_ball:launch_speed + dist_to_ball:launch_speed:forward"
+  )
+
+  # Pre bayesian model 
+  model <- glm(
+    formula = as.formula(formula_str),
+    data = play_data,
+    family = binomial(link = "probit")
+  )
+  
+  return(model)
+}
+```
 
 
 ## References {.unnumbered}

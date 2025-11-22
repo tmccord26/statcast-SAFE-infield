@@ -30,9 +30,8 @@ wrangle_bip_year <- function(year) {
       location_y = 2.5 * (198.27 - hc_y),
       spray_angle = atan(location_x / location_y) * 180 / pi
     ) |>
+    filter(abs(spray_angle) <= 45) |>
     select(game_year, events, bb_type, successful_play, play_made_by, fielder_3:fielder_6, out_1b:out_ss, location_x, location_y, spray_angle, launch_speed)
-
-    bip_wrangled <- get_fielder_positions(bip_wrangled)
   }
 
 get_fielder_positions <- function(bip_data) {
@@ -57,7 +56,7 @@ bip_2025 <- wrangle_bip_year(2025)
 
 bip_full <- bind_rows(bip_2023, bip_2024, bip_2025)
 
-player_positions <- get_fielder_positions(bip_clean)
+player_positions <- get_fielder_positions(bip_full)
 
 write_rds(bip_full, "statcast_data/bip_clean.rds")
 write_rds(player_positions, "statcast_data/player_positioning/safe_positioning.rds")
