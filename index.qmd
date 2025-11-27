@@ -167,11 +167,18 @@ ggplot() +
 To describe the modernization of the SAFE framework, we start with a technical overview of the original model from @jensen_2009.
 
 The first step is to estimate the probability that a fielder makes a successful play on a batted ball for each combination of year, position, and batted ball type (ground ball, line drive, fly ball/pop up).
+Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
+This follows with the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
+It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
+We also only consider batted balls hit into fair territory within 250 feet of the player's starting position, as these are the plays that the fielder at that position is most likely to have a chance to make.
+This limits our model to only plays that a player at that position would be eligible for. 
+
+[Expand more on Methods]
 
 ### Fly Balls and Line Drives
 
 For fly balls and line drives, a successful play is defined as a play in which the fielder catches the ball before it touches the ground.
-Then, we can define each batted ball $j$  as a Bernoulli trial with outcome $S_{ij} = 1$ if player $j$ made a successful play and $S_{ij} = 0$ otherwise.
+Then, we can define each batted ball $j$ as a Bernoulli trial with outcome $S_{ij} = 1$ if player $i$ made a successful play and $S_{ij} = 0$ otherwise.
 Then, we define:
 $$
 S_{ij} = \text{Bernoulli}(p_{ij})
@@ -203,7 +210,10 @@ fit_position_model <- function(bip_data, year, positioning_data, position) {
   
   # Merge position coordinates onto play data, filter to year, and compute features
   play_data <- bip_data |>
-    filter(game_year == year) |>
+    filter(
+      game_year == year,
+      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
+    ) |>
     mutate(
       pos_x = pos$pos_x,
       pos_y = pos$pos_y,
@@ -234,7 +244,7 @@ fit_position_model <- function(bip_data, year, positioning_data, position) {
 
 ```{r}
 
-# --------------------- LINE DRIVE MODEL FITTING ---------------------
+# -------------------------- LINE DRIVE MODEL FITTING --------------------------
 bip_fb_pu <- bip_full |>
   filter(bb_type == "line_drive")
 
@@ -249,7 +259,10 @@ fit_position_model <- function(bip_data, year, positioning_data, position) {
   
   # Merge position coordinates onto play data, filter to year, and compute features
   play_data <- bip_data |>
-    filter(game_year == year) |>
+    filter(
+      game_year == year,
+      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
+    ) |>
     mutate(
       pos_x = pos$pos_x,
       pos_y = pos$pos_y,
@@ -273,6 +286,69 @@ fit_position_model <- function(bip_data, year, positioning_data, position) {
   )
   
   return(model)
+}
+```
+
+
+## Ground Balls
+
+However, the more common batted ball that infielders must handle are ground balls.
+A successful play on a ground ball is one in which the fielder records at least one out on the play. 
+We define $S_{ij}$ in the same way as for fly balls and line drives, and model it similarly as a Bernoulli trial with probability $p_{ij}$.
+
+The authors model this probability using the velocity of the batted ball ($V_{ij}$), the angle ($\theta_{ij}$) between the fielder's starting position and the location of the batted ball, and an indicator for whether the fielder must move left or right to make the play ($L_{ij} = 1$ for left, $L_{ij} = 0$ for right):
+
+$$
+p_{ij} = \Phi(\beta_{i0} + \beta_{i1} \theta_{ij} + \beta_{i2} \theta_{ij} L_{ij} + \beta_{i3} \theta_{ij} V_{ij} + \beta_{i4} \theta_{ij} V_{ij} L_{ij})
+$$
+
+
+
+```{r}
+# -------------------------- GROUND BALL MODEL FITTING --------------------------
+
+bip_gb <- bip_full |>
+  filter(bb_type == "ground_ball")
+
+fit_position_model_gb <- function(bip_data, year, positioning_data, position) {
+  
+  # Filter positioning data for the relevant year and position
+  pos <- positioning_data |>
+    filter(play_made_by == !!position)
+  
+  if (nrow(pos) != 1) {
+    stop("Positioning data must have exactly one row for each year/position combination")
+  }
+  
+  # Merge position coordinates onto play data, filter to year, and compute features
+  play_data <- bip_data |>
+    filter(
+      game_year == year,
+      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
+    ) |>
+    mutate(
+      pos_x = pos$pos_x,
+      pos_y = pos$pos_y,
+      pos_angle = pos$pos_angle,
+      theta = abs(pos_angle - spray_angle),
+      move_left = ifelse(spray_angle < pos_angle, 1, 0)
+    )
+  
+  # Create the outcome variable name dynamically
+  outcome_var <- paste0("out_", str_to_lower(position))
+  formula_str <- paste0(
+    outcome_var, " ~ theta + theta:move_left + theta:launch_speed + theta:launch_speed:move_left"
+  )
+
+  # Pre bayesian model 
+  model <- glm(
+    formula = as.formula(formula_str),
+    data = play_data,
+    family = binomial(link = "probit")
+  )
+  
+  return(model)
+  
 }
 ```
 
