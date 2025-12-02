@@ -17,6 +17,7 @@ number-sections: true
 ```{r}
 library(tidyverse)
 library(kableExtra)
+library(lme4)
 ```
 
 
@@ -24,7 +25,7 @@ library(kableExtra)
 
 The evaluation of batting and pitching in baseball has been at the forefront of sports analytics for decades, mostly due to their discrete nature and the availability of relevant, quantifiable data.
 It is relatively simple to measure the outcome of a plate appearance or a pitch, making it easier to develop metrics that accurately reflect player performance in these areas.
-In contrast, defensive evaluation has lagged behind due to the continuous, spatiotemporal nature of fielding. 
+In contrast, defensive evaluation in the public sphere has lagged behind due to the continuous, spatiotemporal nature of fielding. 
 
 Still, Major League Baseball (MLB) organizations are faced with important decisions regarding defense, such as positioning players, making defensive substitutions, and evaluating trade-offs between offensive and defensive abilities.
 At the end of each season, MLB issues Gold Glove awards to the best defenders at each position, highlighting the importance of defense in the game.
@@ -36,6 +37,7 @@ These metrics also fail to capture the full scope of a player's defensive contri
 Statisticians have tried to find ways to quantify the nuances of defense.
 In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating (UZR) metric, which attempted to evaluate defense by dividing the field into discrete zones and assigning run values to plays made or not made within those zones (@uzr_fangraphs).
 This run-based approach allowed statisticians to understand the stakes of each defensive play.
+However, many criticisms of UZR exist, including the arbitrary nature of the zone definitions and the discretization of a continuous space.
 
 In 2009, @jensen_2009 introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework, which built upon UZR by using a hierarchical Bayesian model to evaluate defense as a continuous surface.
 The SAFE framework uses estimates of player location, ball location, and ball velocity to model the probability of a fielder making a play on a batted ball, allowing for a more nuanced evaluation of defensive performance.
@@ -52,10 +54,14 @@ Since the publication of the SAFE framework, MLB has introduced Statcast, a high
 Statcast provides a wealth of data that was previously unavailable, including precise measurements of player and ball locations, velocities, and trajectories.
 This data has the potential to revolutionize defensive evaluation in baseball, allowing for more accurate and reliable estimates of defensive performance.
 
-In this paper, we modernize the original SAFE framework for infielders using three years Statcast data (2023-2025).
+The goal of this paper is to modernize the original SAFE framework for infielders using three years of Statcast data (2023-2025).
+We are interested in evaluating the number of runs saved or cost by infielders at each position (1B, 2B, SS, 3B) using updated data and methods.
+We fit various hierarchical probit regression models similar to that of @jensen_2009 to estimate the probability of a ground ball resulting in a successful play by the fielder at each infield position (1B, 2B, SS, 3B).
+From there, we estimate the run consequences of each play to derive an overall defensive metric for each player.
+
 We propose three models:
 
-1. A reproduction of the original SAFE model using Statcast data.
+1. A reproduction of the original SAFE model for ground balls using Statcast data.
 2. A semi-reproduction of the original SAFE model using updated player-specific positioning data.
 3. An improved model that incorporates player-specific positioning data and additional covariates to better capture the nuances of infield defense.
 
@@ -65,44 +71,42 @@ We also evaluate the year-to-year reliability of our models to assess their effe
 ## Data
 
 Our evaluation of infield defense is based on Statcast data from 2023-2025.
-Although Statcast data has been publicly available since 2015, we focus on the most recent three years because the infield "shift", a defensive strategy where infielders position themselves in extreme positions based on the batter's hitting tendencies, was banned following the 2022 season.
+Although Statcast data has been publicly available since 2015, we focus on the most recent three years because the infield "shift" was banned following the 2022 season.
 We believe that narrowing the frame of our analysis to non-shifted seasons will yield more accurate estimates due to more consistent estimates for fielder locations.
 We obtain data on batted balls through the `baseballr` package in R, which provides a convenient interface for scraping Statcast data from MLB's public API.
 The result is an .Rds file for each year of interest where each observation corresponds to a single batted ball in play (BIP) event.
 Further, as an extension of the original SAFE framework, we extract information on individual player positioning before each pitch by using the "Fielder Positioning" page on Baseball Savant (@savant_positioning). 
 The location for each infielder on a given play is not publicly available.
 However, Baseball Savant provides average positioning data for each player at each position based on all batted balls successfully fielded by that position.
-We extract these data by downloading the relevant CSV files from the Baseball Savant website. 
+We extract these data by downloading the relevant .csv files from the Baseball Savant website. 
 
 For each batted ball in play, we extract the relevant information needed to identify the fielder responsible for making a play, the location and velocity of the batted ball, and the outcome of the play.
 
 Using these data, we derive the following factors for each batted ball:
 
-- **successful_play**: A binary indicator of whether the fielder successfully made a play on the batted ball (1 = successful play, 0 = unsuccessful play). For ground balls, this is defined as whether the fielder was able to field the ball and record at least one out. For fly balls/line drives, this is defined as whether the fielder was able to catch the ball before it touched the ground.
+- **successful_play**: A binary indicator of whether the fielder successfully made a play on the batted ball (1 = successful play, 0 = unsuccessful play). For ground balls, this is defined as whether the fielder was able to field the ball and record at least one out. 
 - **play_made_by**: The position (1B, 2B, SS, 3B) of the fielder who made the play on the batted ball (Other, if play is not successful or play is made by another position).
 - **location_x, location_y**: The (x, y) coordinates of the batted ball when it reaches the fielder's location, measured in feet from home plate. The origin (0, 0) is at home plate, with the positive x-axis extending towards first base and the positive y-axis extending towards second base.
 - **spray_angle**: Derived from the (x, y) coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line is 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees. 
 - **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 - **out_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
 
-The resulting dataset contains 16 variables from 339,230 batted balls in play in fair territory from the 2023-2025 seasons. 
+The resulting dataset contains 18 variables from 145070 ground balls hit into fair territory from the 2023-2025 seasons. 
 
 
 ```{r}
 #| label: tbl-bip-summary
-#| tbl-cap: "Summary statistics for batted balls in play from 2023-2025 seasons."
+#| tbl-cap: "Summary statistics for ground balls from the 2023-2025 seasons."
 
 
-bip_full <- read_rds("statcast_data/bip_clean.rds")
+bip_full <- read_rds("statcast_data/bip_gb.rds")
 
 bip_full |>
   group_by(game_year) |>
   summarise(
-    total_bip = n(),
-    ground_balls = sum(bb_type == "ground_ball", na.rm = TRUE),
-    line_drives = sum(bb_type == "line_drive", na.rm = TRUE),
-    fly_balls = sum(bb_type == "fly_ball", na.rm = TRUE),
-    pop_ups = sum(bb_type == "popup", na.rm = TRUE),
+    ground_balls = n(),
+    successful_plays = sum(successful_play == 1, na.rm = TRUE),
+    percent_successful = round(mean(successful_play, na.rm = TRUE) * 100, 2),
     outs_1b = sum(out_1b == 1, na.rm = TRUE),
     outs_2b = sum(out_2b == 1, na.rm = TRUE),
     outs_ss = sum(out_ss == 1, na.rm = TRUE),
@@ -111,12 +115,12 @@ bip_full |>
   ungroup() |>
   kable(
     booktabs = TRUE,
-    col.names = c("Year", "Total BIP", "Ground Balls", "Line Drives", "Fly Balls", "Pop Ups", "Outs at 1B", "Outs at 2B", "Outs at SS", "Outs at 3B"),
+    col.names = c("Year", "Ground Balls", "Successful", "% Successful", "Outs at 1B", "Outs at 2B", "Outs at SS", "Outs at 3B"),
     )
 ```
 
-@tbl-bip-summary shows summary statistics for batted balls in play hit into fair territory from the 2023-2025 seasons.
-The proportion of batted balls by type and the number of outs recorded at each infield position are consistent across the three seasons.
+@tbl-bip-summary shows summary statistics for ground balls hit into fair territory from the 2023-2025 seasons.
+The proportion of ground balls resulting in outs and the number of outs recorded at each infield position are consistent across the three seasons.
 
 ```{r}
 #| label: tbl-continuous-summary
@@ -126,7 +130,7 @@ The proportion of batted balls by type and the number of outs recorded at each i
 continuous_vars <- c("launch_speed", "spray_angle", "location_x", "location_y")
 
 bip_full |>
-  select(continuous_vars) |>
+  select(all_of(continuous_vars)) |>
   pivot_longer(everything(), names_to = "variable", values_to = "value") |>
   mutate(variable = factor(variable, levels = continuous_vars,
                            labels = c("Exit Velocity (mph)", "Spray Angle (degrees)", "Location X (ft)", "Location Y (ft)"))) |>
@@ -145,7 +149,7 @@ bip_full |>
 
 ```{r}
 #| label: fig-fielder-positioning
-#| fig-cap: "Average fielder positioning for infielders (1B, 2B, SS, 3B) based on batted balls successfully fielded from 2023-2025 seasons."
+#| fig-cap: "Average fielder positioning for infielders (1B, 2B, SS, 3B) based on batted balls successfully fielded from 2023-2025 seasons. This considers all batted balls, not just ground balls."
 
 safe_positioning <- read_rds("statcast_data/player_positioning/safe_positioning.rds")
 
@@ -160,155 +164,92 @@ ggplot() +
   )
 ```
 
-[Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position. @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
+[Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position. 
+@fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
+Note that although our analysis is only focused on ground balls, we use all batted balls successfully fielded by each position to estimate the average starting location of the fielder at that position, as in the original SAFE framework.
+This intuitively makes sense, as the starting position of the fielder should not depend on the type of batted ball hit.
 
 ## Methods
 
 To describe the modernization of the SAFE framework, we start with a technical overview of the original model from @jensen_2009.
+The original SAFE model follows a two-step process.
+The first step is to estimate the probability that a fielder makes a successful play on a ground ball using a hierarchical Bayesian probit regression model.
+The second step is to apply run expectancy values to estimate the run consequences of each play, which are then combined with the probability estimates to derive an overall defensive metric for each player.
+In other words, each player is assigned a positive or negative run value based on the expected number of runs they save or cost their team for a given play with respect to the difficulty of the play. 
 
-The first step is to estimate the probability that a fielder makes a successful play on a batted ball for each combination of year, position, and batted ball type (ground ball, line drive, fly ball/pop up).
+The first step is to estimate the probability that a fielder makes a successful play on a batted ball for each combination of year and position.
 Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
 This follows with the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
 It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
 We also only consider batted balls hit into fair territory within 250 feet of the player's starting position, as these are the plays that the fielder at that position is most likely to have a chance to make.
 This limits our model to only plays that a player at that position would be eligible for. 
 
-[Expand more on Methods]
+This general probability model estimates the probability that a given play will be successful based on various covariates that describe the nature of the batted ball and the fielder's position.
+In order to capture the defensive abilities of each fielder, we use a hierarchical structure, in which we fit individual coefficients for each fielder at each position.
 
-### Fly Balls and Line Drives
+This process requires us to fit a model for each combination of batted ball type (ground ball, line drive, fly ball/pop up), position (1B, 2B, SS, 3B), and year (2023, 2024, 2025), resulting in a total of 36 models.
+@jensen_2009 uses a Bayesian hierarchical probit regression model to estimate the probability of a successful play on a batted ball.
+However, due to the large number of models to fit and the computational complexity of Bayesian methods, we use a frequentist hierarchical probit regression model for this analysis.
 
-For fly balls and line drives, a successful play is defined as a play in which the fielder catches the ball before it touches the ground.
+
+## Modeling The Probability of a Successful Play on a Ground Ball
+
+A successful play on a ground ball is one in which the fielder records at least one out on the play. 
 Then, we can define each batted ball $j$ as a Bernoulli trial with outcome $S_{ij} = 1$ if player $i$ made a successful play and $S_{ij} = 0$ otherwise.
 Then, we define:
+
 $$
 S_{ij} = \text{Bernoulli}(p_{ij})
 $$
 where $p_{ij}$ is the probability that fielder $i$ makes a successful play on batted ball $j$.
 
-We model this probability as a function of the distance that player $i$ must travel to reach the location of batted ball $j$ ($D_{ij}$), the velocity of the batted ball ($V_{ij}$), and an indicator for the direction that the fielder must travel to make the play ($F_{ij} = 1$ for forward, $F_{ij} = 0$ for backward):
-
-$$
-p_{ij} = \Phi(\beta_{i0} + \beta_{i1} D_{ij} + \beta_{i2} D_{ij} F_{ij} + \beta_{i3} D_{ij} V_{ij} + \beta_{i4} D_{ij} V_{ij} F_{ij})
-$$
-
-where $\Phi$ is the standard normal cumulative distribution function (CDF) and $\beta_{i0}, \beta_{i1}, \beta_{i2}, \beta_{i3}, \beta_{i4}$ are player-specific coefficients that capture the effect of each covariate on the probability of making a successful play.
-
-```{r}
-
-# --------------------- FLY BALL/POP UP MODEL FITTING ---------------------
-bip_fb_pu <- bip_full |>
-  filter(bb_type %in% c("fly_ball", "popup"))
-
-fit_position_model <- function(bip_data, year, positioning_data, position) {
-  # Filter positioning data for the relevant year and position
-  pos <- positioning_data |>
-    filter(play_made_by == !!position)
-  
-  if (nrow(pos) != 1) {
-    stop("Positioning data must have exactly one row for each year/position combination")
-  }
-  
-  # Merge position coordinates onto play data, filter to year, and compute features
-  play_data <- bip_data |>
-    filter(
-      game_year == year,
-      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
-    ) |>
-    mutate(
-      pos_x = pos$pos_x,
-      pos_y = pos$pos_y,
-      d_pos = sqrt(pos_x^2 + pos_y^2),
-      d_ball = sqrt(location_x^2 + location_y^2),
-      dist_to_ball = sqrt((location_x - pos_x)^2 + (location_y - pos_y)^2),
-      forward = ifelse(d_pos > d_ball, 1, 0)
-    )
-
-  # Create the outcome variable name dynamically
-  outcome_var <- paste0("out_", str_to_lower(position))
-  formula_str <- paste0(
-    outcome_var, " ~ dist_to_ball + dist_to_ball:forward + dist_to_ball:launch_speed + dist_to_ball:launch_speed:forward"
-  )
-
-  # Pre bayesian model 
-  model <- glm(
-    formula = as.formula(formula_str),
-    data = play_data,
-    family = binomial(link = "probit")
-  )
-  
-  return(model)
-}
-
-```
-
-
-```{r}
-
-# -------------------------- LINE DRIVE MODEL FITTING --------------------------
-bip_fb_pu <- bip_full |>
-  filter(bb_type == "line_drive")
-
-fit_position_model <- function(bip_data, year, positioning_data, position) {
-  # Filter positioning data for the relevant year and position
-  pos <- positioning_data |>
-    filter(play_made_by == !!position)
-  
-  if (nrow(pos) != 1) {
-    stop("Positioning data must have exactly one row for each year/position combination")
-  }
-  
-  # Merge position coordinates onto play data, filter to year, and compute features
-  play_data <- bip_data |>
-    filter(
-      game_year == year,
-      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
-    ) |>
-    mutate(
-      pos_x = pos$pos_x,
-      pos_y = pos$pos_y,
-      d_pos = sqrt(pos_x^2 + pos_y^2),
-      d_ball = sqrt(location_x^2 + location_y^2),
-      dist_to_ball = sqrt((location_x - pos_x)^2 + (location_y - pos_y)^2),
-      forward = ifelse(d_pos > d_ball, 1, 0)
-    )
-
-  # Create the outcome variable name dynamically
-  outcome_var <- paste0("out_", str_to_lower(position))
-  formula_str <- paste0(
-    outcome_var, " ~ dist_to_ball + dist_to_ball:forward + dist_to_ball:launch_speed + dist_to_ball:launch_speed:forward"
-  )
-
-  # Pre bayesian model 
-  model <- glm(
-    formula = as.formula(formula_str),
-    data = play_data,
-    family = binomial(link = "probit")
-  )
-  
-  return(model)
-}
-```
-
-
-## Ground Balls
-
-However, the more common batted ball that infielders must handle are ground balls.
-A successful play on a ground ball is one in which the fielder records at least one out on the play. 
-We define $S_{ij}$ in the same way as for fly balls and line drives, and model it similarly as a Bernoulli trial with probability $p_{ij}$.
-
-The authors model this probability using the velocity of the batted ball ($V_{ij}$), the angle ($\theta_{ij}$) between the fielder's starting position and the location of the batted ball, and an indicator for whether the fielder must move left or right to make the play ($L_{ij} = 1$ for left, $L_{ij} = 0$ for right):
+We model this probability as a function of the velocity of the batted ball ($V_{ij}$), the angle ($\theta_{ij}$) between the fielder's starting position and the location of the batted ball, and an indicator for whether the fielder must move left or right to make the play ($L_{ij} = 1$ for left, $L_{ij} = 0$ for right):
 
 $$
 p_{ij} = \Phi(\beta_{i0} + \beta_{i1} \theta_{ij} + \beta_{i2} \theta_{ij} L_{ij} + \beta_{i3} \theta_{ij} V_{ij} + \beta_{i4} \theta_{ij} V_{ij} L_{ij})
 $$
 
+where $\Phi$ is the standard normal cumulative distribution function (CDF) and $\beta_{i0}, \beta_{i1}, \beta_{i2}, \beta_{i3}, \beta_{i4}$ are player-specific coefficients that capture the effect of each covariate on the probability of making a successful play.
+
+```{r}
+# Exploring the relationship between factors and successful plays
+
+# Shortstops in 2025
+
+pos <- safe_positioning |> filter(play_made_by == "SS")
+
+play_data <- bip_full |>
+    filter(
+      game_year == 2025,
+      (successful_play == 1 & play_made_by == "SS") | (successful_play == 0)
+    ) |>
+    mutate(
+      pos_x = pos$pos_x,
+      pos_y = pos$pos_y,
+      pos_angle = pos$pos_angle,
+      theta = abs(pos_angle - spray_angle),
+      move_left = ifelse(spray_angle < pos_angle, 1, 0),
+      fielder_id = fielder_6
+    )
+
+play_data |>
+  mutate(theta_adj = ifelse(move_left == 1, -theta, theta)) |>
+  ggplot(aes(x = theta_adj, color = factor(successful_play))) +
+  geom_density() +
+  labs(
+    title = "Distribution of Theta for Shortstops in 2025",
+    x = "Theta (degrees)",
+    y = "Density",
+    color = "Successful Play"
+  ) +
+  theme_classic()
+
+```
+
 
 
 ```{r}
 # -------------------------- GROUND BALL MODEL FITTING --------------------------
-
-bip_gb <- bip_full |>
-  filter(bb_type == "ground_ball")
 
 fit_position_model_gb <- function(bip_data, year, positioning_data, position) {
   
@@ -331,26 +272,89 @@ fit_position_model_gb <- function(bip_data, year, positioning_data, position) {
       pos_y = pos$pos_y,
       pos_angle = pos$pos_angle,
       theta = abs(pos_angle - spray_angle),
-      move_left = ifelse(spray_angle < pos_angle, 1, 0)
+      move_left = ifelse(spray_angle < pos_angle, 1, 0),
+      fielder_id = case_when(
+        position == "1B" ~ fielder_3,
+        position == "2B" ~ fielder_4,
+        position == "3B" ~ fielder_5,
+        position == "SS" ~ fielder_6,
+        TRUE ~ NA
+      )
+    ) |>
+    # scaling continuous variables
+    mutate(
+      launch_speed = scale(launch_speed)[,1],
+      theta = scale(theta)[,1]
+    ) |>
+    # filter out NA for all variables used in the model
+    filter(
+      !is.na(fielder_id),
+      !is.na(launch_speed),
+      !is.na(theta)
     )
   
   # Create the outcome variable name dynamically
   outcome_var <- paste0("out_", str_to_lower(position))
+  
   formula_str <- paste0(
-    outcome_var, " ~ theta + theta:move_left + theta:launch_speed + theta:launch_speed:move_left"
+    outcome_var, " ~ 1 + theta + theta:move_left + ",
+    "theta:launch_speed + theta:launch_speed:move_left + ",
+    "(1 + theta + theta:move_left || fielder_id)"
   )
-
-  # Pre bayesian model 
-  model <- glm(
-    formula = as.formula(formula_str),
+  
+  mod_formula <- as.formula(formula_str)
+  
+  model <- glmer(
+    formula = mod_formula,
     data = play_data,
-    family = binomial(link = "probit")
+    family = binomial(link = "probit"),
+    control = glmerControl(
+      optimizer = "bobyqa",
+      optCtrl = list(maxfun = 1e5)
+    )
   )
   
   return(model)
   
 }
+
+mod <- fit_position_model_gb(
+  bip_data = bip_full,
+  year = 2025,
+  positioning_data = safe_positioning,
+  position = "SS"
+)
+
+
 ```
+
+
+## Bayesian Structure
+
+The existing model definitions and provide a hierarchical probit regression framework for estimating the probability of a successful play on a batted ball.
+However, for players with limited data, the estimates of the player-specific coefficients may be unreliable.
+To address this, we introduce a Bayesian hierarchical structure that allows for the sharing of information across players at the same position.
+
+For each position, we assume that the player-specific coefficients $\beta_{ik}$ for player $i$ and covariate $k$ are drawn from a common normal distribution:
+
+$$
+\beta_{i} \sim \text{Normal}(\mu, \Sigma)
+$$
+where $\mu$ is a vector of position-specific mean coefficients and $\Sigma$ is a covariance matrix that captures the variability of the coefficients across players at that position.
+Within the covariance structure, we assume that all components of $\beta_i$ are independent, leading to a diagonal covariance elements $\sigma^2$.
+Aligned with the original SAFE framework, we place uniform (uninformative) priors on the shared player parameters $\mu_k$ and $\sigma_k$.
+
+
+### Updated SAFE with Player-Specific Positioning
+
+The original SAFE model attempts to estimate the starting location of each position by using the average location of all batted balls successfully fielded by that position.
+This assumes that all players at a given position start from the same location, which is unlikely to be true in practice.
+It also assumes a direct relationship between the location of successfully fielded balls and the starting position of the fielder, which may not hold if players have different ranges or positioning strategies.
+However, with the availability of player-specific positioning data from Baseball Savant, we can improve upon this estimate by using the average positioning data for each individual player at each position.
+This allows us to capture the nuances of each player's defensive positioning, which may vary significantly from the average positioning for that position. 
+
+For this model extension, we follow the same model structure as before, but also incorporate the player-specific positioning data into the calculation of the distance, angle, and direction covariates.
+We hope that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball. 
 
 
 ## References {.unnumbered}

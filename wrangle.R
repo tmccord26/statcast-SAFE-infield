@@ -59,5 +59,8 @@ bip_full <- bind_rows(bip_2023, bip_2024, bip_2025)
 
 player_positions <- get_fielder_positions(bip_full)
 
-write_rds(bip_full, "statcast_data/bip_clean.rds")
+bip_gb <- bip_full |>
+  filter(bb_type == "ground_ball")
+
+write_rds(bip_gb, "statcast_data/bip_gb.rds")
 write_rds(player_positions, "statcast_data/player_positioning/safe_positioning.rds")
