@@ -30,7 +30,8 @@ In contrast, defensive evaluation in the public sphere has lagged behind due to 
 Still, Major League Baseball (MLB) organizations are faced with important decisions regarding defense, such as positioning players, making defensive substitutions, and evaluating trade-offs between offensive and defensive abilities.
 At the end of each season, MLB issues Gold Glove awards to the best defenders at each position, highlighting the importance of defense in the game.
 
-Before the advent of high-resolution player tracking data, teams relied on simple defensive metrics such as fielding percentage, which calculates the percentage of plays a fielder successfully makes, and errors, which count the number of plays that the player does not make that the average fielder would.
+Before the advent of high-resolution player tracking data, teams relied on simple defensive metrics such as fielding percentage, which calculates the percentage of plays a fielder successfully makes. 
+This depends on errors, which are charged when a fielder does not make a play that an average fielder would be expected to make.
 However, errors are prone to subjectivity, as they depend primarily on the official scorer's judgement.
 These metrics also fail to capture the full scope of a player's defensive contributions, as they do not account for factors such as range, positioning, and the difficulty of plays made.
 
@@ -57,14 +58,11 @@ This data has the potential to revolutionize defensive evaluation in baseball, a
 The goal of this paper is to modernize the original SAFE framework for infielders using three years of Statcast data (2023-2025).
 We are interested in evaluating the number of runs saved or cost by infielders at each position (1B, 2B, SS, 3B) using updated data and methods.
 We fit various hierarchical probit regression models similar to that of @jensen_2009 to estimate the probability of a ground ball resulting in a successful play by the fielder at each infield position (1B, 2B, SS, 3B).
-From there, we estimate the run consequences of each play to derive an overall defensive metric for each player.
+We then convert these probability estimates into run values by estimating the run consequence of a given ground ball based on its location and velocity.
 
-We propose three models:
+For each given player at each position and year, we estimate their overall defensive contribution in terms of runs saved or cost using the SAFE framework.
 
-1. A reproduction of the original SAFE model for ground balls using Statcast data.
-2. A semi-reproduction of the original SAFE model using updated player-specific positioning data.
-3. An improved model that incorporates player-specific positioning data and additional covariates to better capture the nuances of infield defense.
-
+Further, we extend the original framework to include player-specific positioning data from Baseball Savant to improve our estimates of fielder starting locations.
 We compare the results of these models to assess the impact of using high-resolution tracking data and updated positioning information on defensive evaluation.
 We also evaluate the year-to-year reliability of our models to assess their effectiveness in capturing true defensive ability.
 
@@ -91,78 +89,16 @@ Using these data, we derive the following factors for each batted ball:
 - **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 - **out_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
 
-The resulting dataset contains 18 variables from 145070 ground balls hit into fair territory from the 2023-2025 seasons. 
+The resulting dataset contains 21 variables from 145070 ground balls hit into fair territory from the 2023-2025 seasons. 
 
+{{< embed exploratory.qmd#tbl-bip-summary >}}
 
-```{r}
-#| label: tbl-bip-summary
-#| tbl-cap: "Summary statistics for ground balls from the 2023-2025 seasons."
-
-
-bip_full <- read_rds("statcast_data/bip_gb.rds")
-
-bip_full |>
-  group_by(game_year) |>
-  summarise(
-    ground_balls = n(),
-    successful_plays = sum(successful_play == 1, na.rm = TRUE),
-    percent_successful = round(mean(successful_play, na.rm = TRUE) * 100, 2),
-    outs_1b = sum(out_1b == 1, na.rm = TRUE),
-    outs_2b = sum(out_2b == 1, na.rm = TRUE),
-    outs_ss = sum(out_ss == 1, na.rm = TRUE),
-    outs_3b = sum(out_3b == 1, na.rm = TRUE)
-  ) |>
-  ungroup() |>
-  kable(
-    booktabs = TRUE,
-    col.names = c("Year", "Ground Balls", "Successful", "% Successful", "Outs at 1B", "Outs at 2B", "Outs at SS", "Outs at 3B"),
-    )
-```
+{{< embed exploratory.qmd#tbl-continuous-summary >}}
 
 @tbl-bip-summary shows summary statistics for ground balls hit into fair territory from the 2023-2025 seasons.
 The proportion of ground balls resulting in outs and the number of outs recorded at each infield position are consistent across the three seasons.
 
-```{r}
-#| label: tbl-continuous-summary
-#| tbl-cap: "Summary statistics for batted ball variables in the batted ball dataset."
-
-
-continuous_vars <- c("launch_speed", "spray_angle", "location_x", "location_y")
-
-bip_full |>
-  select(all_of(continuous_vars)) |>
-  pivot_longer(everything(), names_to = "variable", values_to = "value") |>
-  mutate(variable = factor(variable, levels = continuous_vars,
-                           labels = c("Exit Velocity (mph)", "Spray Angle (degrees)", "Location X (ft)", "Location Y (ft)"))) |>
-  group_by(variable) |>
-  summarize(
-    mean = round(mean(value, na.rm = TRUE), 2),
-    sd = round(sd(value, na.rm = TRUE), 2),
-    min = round(min(value, na.rm = TRUE), 2),
-    max = round(max(value, na.rm = TRUE), 2)
-  ) |>
-  kable(
-    col.names = c("Variable", "Mean", "SD", "Min", "Max")
-  )
-```
-
-
-```{r}
-#| label: fig-fielder-positioning
-#| fig-cap: "Average fielder positioning for infielders (1B, 2B, SS, 3B) based on batted balls successfully fielded from 2023-2025 seasons. This considers all batted balls, not just ground balls."
-
-safe_positioning <- read_rds("statcast_data/player_positioning/safe_positioning.rds")
-
-ggplot() +
-  geom_point(data = bip_full |> filter(play_made_by != "Other"), aes(x = location_x, y = location_y), alpha = 0.1) +
-  geom_point(data = safe_positioning, aes(x = pos_x, y = pos_y), color = "red", size = 3) +
-  facet_wrap(~ play_made_by) +
-  theme_classic() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
-```
+{{< embed exploratory.qmd#fig-fielder-positioning >}}
 
 [Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position. 
 @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
@@ -175,24 +111,32 @@ To describe the modernization of the SAFE framework, we start with a technical o
 The original SAFE model follows a two-step process.
 The first step is to estimate the probability that a fielder makes a successful play on a ground ball using a hierarchical Bayesian probit regression model.
 The second step is to apply run expectancy values to estimate the run consequences of each play, which are then combined with the probability estimates to derive an overall defensive metric for each player.
-In other words, each player is assigned a positive or negative run value based on the expected number of runs they save or cost their team for a given play with respect to the difficulty of the play. 
+In other words, each player is assigned a positive or negative run value based on the expected number of runs they save or cost their team for a given play with respect to the difficulty of the play.
+Our goal is estimate SAFE values for each infielder in each year:
 
-The first step is to estimate the probability that a fielder makes a successful play on a batted ball for each combination of year and position.
+$$
+SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V)
+$$
+
+where $PPA_{i,p,y}$ is the play probability added for player $i$ at position $p$ in year $y$, $\Delta_{RE}$ is the change in run expectancy for a batted ball with spray angle $\theta$ and velocity $V$, and $f(\theta, V)$ is the density of batted balls hit with spray angle $\theta$ and velocity $V$.
+
+Our paper first estimates the probability that a fielder makes a successful play on a batted ball for each combination of year and position.
 Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
 This follows with the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
 It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
-We also only consider batted balls hit into fair territory within 250 feet of the player's starting position, as these are the plays that the fielder at that position is most likely to have a chance to make.
+We also only consider batted balls hit into fair territory and within 45 degrees of the fielder's position.
 This limits our model to only plays that a player at that position would be eligible for. 
+Further, for each combination of year and position, we only consider players who had at least 10 plays at that position during that year. 
 
 This general probability model estimates the probability that a given play will be successful based on various covariates that describe the nature of the batted ball and the fielder's position.
-In order to capture the defensive abilities of each fielder, we use a hierarchical structure, in which we fit individual coefficients for each fielder at each position.
+In order to capture the defensive abilities of each fielder, we use a hierarchical structure, in which we fit random effects for each individual fielder at that position.
 
-This process requires us to fit a model for each combination of batted ball type (ground ball, line drive, fly ball/pop up), position (1B, 2B, SS, 3B), and year (2023, 2024, 2025), resulting in a total of 36 models.
+This process requires us to fit a model for each combination of position (1B, 2B, SS, 3B) and year (2023, 2024, 2025), resulting in a total of 12 models.
 @jensen_2009 uses a Bayesian hierarchical probit regression model to estimate the probability of a successful play on a batted ball.
 However, due to the large number of models to fit and the computational complexity of Bayesian methods, we use a frequentist hierarchical probit regression model for this analysis.
 
 
-## Modeling The Probability of a Successful Play on a Ground Ball
+### Modeling The Probability of a Successful Play on a Ground Ball
 
 A successful play on a ground ball is one in which the fielder records at least one out on the play. 
 Then, we can define each batted ball $j$ as a Bernoulli trial with outcome $S_{ij} = 1$ if player $i$ made a successful play and $S_{ij} = 0$ otherwise.
@@ -206,144 +150,65 @@ where $p_{ij}$ is the probability that fielder $i$ makes a successful play on ba
 We model this probability as a function of the velocity of the batted ball ($V_{ij}$), the angle ($\theta_{ij}$) between the fielder's starting position and the location of the batted ball, and an indicator for whether the fielder must move left or right to make the play ($L_{ij} = 1$ for left, $L_{ij} = 0$ for right):
 
 $$
-p_{ij} = \Phi(\beta_{i0} + \beta_{i1} \theta_{ij} + \beta_{i2} \theta_{ij} L_{ij} + \beta_{i3} \theta_{ij} V_{ij} + \beta_{i4} \theta_{ij} V_{ij} L_{ij})
+p_{ij} = \Phi(\beta_{i0} + \beta_{i1} \theta_{ij} + \beta_{2} \theta_{ij} L_{ij} + \beta_{3} \theta_{ij} V_{ij} + \beta_{4} \theta_{ij} V_{ij} L_{ij})
 $$
 
-where $\Phi$ is the standard normal cumulative distribution function (CDF) and $\beta_{i0}, \beta_{i1}, \beta_{i2}, \beta_{i3}, \beta_{i4}$ are player-specific coefficients that capture the effect of each covariate on the probability of making a successful play.
+where $\Phi$ is the standard normal cumulative distribution function (CDF).
+It's important to note that the coefficients $\beta_{ik}$ for $k = 0, 1$ are player-specific, while the coefficients $\beta_{k}$ for $k = 2, 3, 4$ are shared across all players at that position.
+Our model specification includes random intercept effects for each fielder, as well as random slope effects for the angle terms. 
+We allow each player to have a different baseline for fielding a given ground ball and a different slope for the angle terms.
+This reflects our belief that different players may have different abilities to field balls hit at different angles.
+The original Bayesian implementation of this model used player-specific coefficients for all terms, but we simplify this hierarchical structure to reduce computational complexity and improve model convergence.
 
-```{r}
-# Exploring the relationship between factors and successful plays
+{{< embed probability_modeling.qmd#fig-random-intercepts >}}
 
-# Shortstops in 2025
-
-pos <- safe_positioning |> filter(play_made_by == "SS")
-
-play_data <- bip_full |>
-    filter(
-      game_year == 2025,
-      (successful_play == 1 & play_made_by == "SS") | (successful_play == 0)
-    ) |>
-    mutate(
-      pos_x = pos$pos_x,
-      pos_y = pos$pos_y,
-      pos_angle = pos$pos_angle,
-      theta = abs(pos_angle - spray_angle),
-      move_left = ifelse(spray_angle < pos_angle, 1, 0),
-      fielder_id = fielder_6
-    )
-
-play_data |>
-  mutate(theta_adj = ifelse(move_left == 1, -theta, theta)) |>
-  ggplot(aes(x = theta_adj, color = factor(successful_play))) +
-  geom_density() +
-  labs(
-    title = "Distribution of Theta for Shortstops in 2025",
-    x = "Theta (degrees)",
-    y = "Density",
-    color = "Successful Play"
-  ) +
-  theme_classic()
-
-```
+@fig-random-intercepts demonstrates individual player random intercepts for shortstops (SS) in the 2025 season. 
+Players differ in their baseline abilities. 
+However, the standard error of these estimates are large such that most of the players' random intercepts are not significantly positive or negative. 
 
 
+### Measuring the Quality of a Play
 
-```{r}
-# -------------------------- GROUND BALL MODEL FITTING --------------------------
-
-fit_position_model_gb <- function(bip_data, year, positioning_data, position) {
-  
-  # Filter positioning data for the relevant year and position
-  pos <- positioning_data |>
-    filter(play_made_by == !!position)
-  
-  if (nrow(pos) != 1) {
-    stop("Positioning data must have exactly one row for each year/position combination")
-  }
-  
-  # Merge position coordinates onto play data, filter to year, and compute features
-  play_data <- bip_data |>
-    filter(
-      game_year == year,
-      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
-    ) |>
-    mutate(
-      pos_x = pos$pos_x,
-      pos_y = pos$pos_y,
-      pos_angle = pos$pos_angle,
-      theta = abs(pos_angle - spray_angle),
-      move_left = ifelse(spray_angle < pos_angle, 1, 0),
-      fielder_id = case_when(
-        position == "1B" ~ fielder_3,
-        position == "2B" ~ fielder_4,
-        position == "3B" ~ fielder_5,
-        position == "SS" ~ fielder_6,
-        TRUE ~ NA
-      )
-    ) |>
-    # scaling continuous variables
-    mutate(
-      launch_speed = scale(launch_speed)[,1],
-      theta = scale(theta)[,1]
-    ) |>
-    # filter out NA for all variables used in the model
-    filter(
-      !is.na(fielder_id),
-      !is.na(launch_speed),
-      !is.na(theta)
-    )
-  
-  # Create the outcome variable name dynamically
-  outcome_var <- paste0("out_", str_to_lower(position))
-  
-  formula_str <- paste0(
-    outcome_var, " ~ 1 + theta + theta:move_left + ",
-    "theta:launch_speed + theta:launch_speed:move_left + ",
-    "(1 + theta + theta:move_left || fielder_id)"
-  )
-  
-  mod_formula <- as.formula(formula_str)
-  
-  model <- glmer(
-    formula = mod_formula,
-    data = play_data,
-    family = binomial(link = "probit"),
-    control = glmerControl(
-      optimizer = "bobyqa",
-      optCtrl = list(maxfun = 1e5)
-    )
-  )
-  
-  return(model)
-  
-}
-
-mod <- fit_position_model_gb(
-  bip_data = bip_full,
-  year = 2025,
-  positioning_data = safe_positioning,
-  position = "SS"
-)
-
-
-```
-
-
-## Bayesian Structure
-
-The existing model definitions and provide a hierarchical probit regression framework for estimating the probability of a successful play on a batted ball.
-However, for players with limited data, the estimates of the player-specific coefficients may be unreliable.
-To address this, we introduce a Bayesian hierarchical structure that allows for the sharing of information across players at the same position.
-
-For each position, we assume that the player-specific coefficients $\beta_{ik}$ for player $i$ and covariate $k$ are drawn from a common normal distribution:
+Under this model, we calculate the estimated probability of a successful play for each batted ball in our dataset by using the fitted model for the relevant position and year.
+However, to evaluate the defensive contribution of each player, we need a baseline to compare these probabilities against. 
+We fit a separate model for each position and year, which uses the same covariates but does not include any player-specific effects. 
+Then, for each batted ball, we can calculate the play probability added (PPA) as the difference between the estimated probability of a successful play with the player-specific effects and the estimated probability without the player-specific effects:
 
 $$
-\beta_{i} \sim \text{Normal}(\mu, \Sigma)
+PPA_{ij} = \hat{p}_{ij}^{(player)} - \hat{p}_{j}^{(avg)}
 $$
-where $\mu$ is a vector of position-specific mean coefficients and $\Sigma$ is a covariance matrix that captures the variability of the coefficients across players at that position.
-Within the covariance structure, we assume that all components of $\beta_i$ are independent, leading to a diagonal covariance elements $\sigma^2$.
-Aligned with the original SAFE framework, we place uniform (uninformative) priors on the shared player parameters $\mu_k$ and $\sigma_k$.
 
+This is preferred to simply using the residual values from the player-specific model because it is desirable to compare the probability that a given player makes a successful play to the average probability that any player at that position would make a successful play on that batted ball.
+
+### Measuring the Run Consequences of Ground Balls
+
+Consider two different hard-hit ground balls that a third basemen receives, one to his left, and one to his right, each with equally difficult success probabilities.
+A ground ball hit to his side closest to the shortstop is most likely to result in a single.
+However, the ground ball hit closer to the left field foul line is more likely to result in a double.
+Although we would consider these plays equally difficult, the run consequences of each play are quite different.
+Then, it's important to weight each possible play by its run consequence to get a more accurate estimate of the overall defensive contribution of each player.
+
+Each play is associated with a change in expected runs for the offensive team, which we denote as $\Delta_{RE}$.
+This value is calculated as the difference in run expectancy before and after the play.
+We use a generalized additive model (GAM) to estimate $\Delta_{RE}$ of a ground ball $j$ based on its launch speed $V_j$ and spray angle $\theta_j$:
+
+$$
+\Delta_{RE, j} = f(V_j) + f(\theta_j) + V_j\theta_j + \epsilon
+$$
+
+where $f$ represents a smooth function estimated by the GAM.
+
+
+### Estimating Player SAFE Values
+
+Finally, we calculate the SAFE value for each player $i$ at position $p$ in year $y$ by summing over a space of plausible values of $\theta$ and $V$.
+For each combination of $\theta$ and $V$, we calculate the expected run value added/lost by player $i$ as:
+
+$$
+SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V)
+$$
+
+This gives us an overall estimate of the number of runs saved or cost by player $i$ at position $p$ in year $y$ based on their defensive performance on ground balls.
 
 ### Updated SAFE with Player-Specific Positioning
 
@@ -355,6 +220,11 @@ This allows us to capture the nuances of each player's defensive positioning, wh
 
 For this model extension, we follow the same model structure as before, but also incorporate the player-specific positioning data into the calculation of the distance, angle, and direction covariates.
 We hope that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball. 
+
+
+## Results
+
+
 
 
 ## References {.unnumbered}

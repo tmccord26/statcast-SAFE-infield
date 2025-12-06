@@ -1,0 +1,64 @@
+---
+title: "Modeling the Run Value of Ground Balls"
+format: html
+---
+
+
+```{r}
+library(tidyverse)
+library(mgcv)
+
+bip_gb <- readRDS("statcast_data/bip_gb.rds")
+```
+
+
+## Finding the Density of Ground Balls By Spray Angle for a Given Velocity
+
+```{r}
+bip_gb |>
+  filter(launch_speed >= 95, launch_speed <= 100) |>
+  ggplot(aes(x = spray_angle)) +
+  geom_density(alpha = 0.5)
+```
+
+```{r}
+library(MASS)
+bip_gb_vel_95_100 <- bip_gb |>
+  filter(launch_speed >= 95, launch_speed <= 100)
+spray_angle_density_95_100 <- density(bip_gb_vel_95_100$spray_angle, from = -45, to = 45, n = 90)
+plot(spray_angle_density_95_100)
+```
+
+
+## Linear Weights Modeling of Run Values
+
+We want to estimate the run value of a ground ball based on its launch speed and spray angle. We can do this by fitting a linear model where the response variable is the run value of the play (based on the outcome) and the predictors are launch speed and spray angle.
+
+```{r}
+ggplot(bip_gb, aes(x = launch_speed, y = delta_run_exp, color = launch_angle)) +
+  geom_point(alpha = 0.3)
+```
+
+
+```{r}
+mod_rv <- gam(delta_run_exp ~ s(launch_speed) + s(spray_angle) + launch_speed:spray_angle, data = bip_gb)
+summary(mod_rv)
+```
+
+## Apply These Run Value Estimates to the Ground Ball Dataset
+
+```{r}
+launch_speed_seq <- seq(50, 110, by = 1)
+spray_angle_seq <- seq(-45, 45, by = 1)
+new_data <- expand.grid(
+  launch_speed = launch_speed_seq,
+  spray_angle = spray_angle_seq
+)
+new_data$predicted_run_value <- predict(mod_rv, newdata = new_data)
+
+new_data |>
+  filter(launch_speed == 100) |>
+  ggplot(aes(x = spray_angle, y = predicted_run_value)) +
+  geom_line()
+```
+

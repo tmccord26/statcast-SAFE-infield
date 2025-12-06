@@ -1,0 +1,75 @@
+---
+title: "Introducing the Data"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(kableExtra)
+```
+
+```{r}
+#| label: tbl-bip-summary
+#| tbl-cap: "Summary statistics for ground balls from the 2023-2025 seasons."
+
+
+bip_full <- read_rds("statcast_data/bip_gb.rds")
+
+bip_full |>
+  group_by(game_year) |>
+  summarise(
+    ground_balls = n(),
+    successful_plays = sum(successful_play == 1, na.rm = TRUE),
+    percent_successful = round(mean(successful_play, na.rm = TRUE) * 100, 2),
+    outs_1b = sum(out_1b == 1, na.rm = TRUE),
+    outs_2b = sum(out_2b == 1, na.rm = TRUE),
+    outs_ss = sum(out_ss == 1, na.rm = TRUE),
+    outs_3b = sum(out_3b == 1, na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  kable(
+    booktabs = TRUE,
+    col.names = c("Year", "Ground Balls", "Successful", "% Successful", "Outs at 1B", "Outs at 2B", "Outs at SS", "Outs at 3B"),
+    )
+```
+
+```{r}
+#| label: tbl-continuous-summary
+#| tbl-cap: "Summary statistics for batted ball variables in the batted ball dataset."
+
+
+continuous_vars <- c("launch_speed", "spray_angle", "location_x", "location_y")
+
+bip_full |>
+  select(all_of(continuous_vars)) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "value") |>
+  mutate(variable = factor(variable, levels = continuous_vars,
+                           labels = c("Exit Velocity (mph)", "Spray Angle (degrees)", "Location X (ft)", "Location Y (ft)"))) |>
+  group_by(variable) |>
+  summarize(
+    mean = round(mean(value, na.rm = TRUE), 2),
+    sd = round(sd(value, na.rm = TRUE), 2),
+    min = round(min(value, na.rm = TRUE), 2),
+    max = round(max(value, na.rm = TRUE), 2)
+  ) |>
+  kable(
+    col.names = c("Variable", "Mean", "SD", "Min", "Max")
+  )
+```
+
+```{r}
+#| label: fig-fielder-positioning
+#| fig-cap: "Average fielder positioning for infielders (1B, 2B, SS, 3B) based on batted balls successfully fielded from 2023-2025 seasons. This considers all batted balls, not just ground balls."
+
+safe_positioning <- read_rds("statcast_data/player_positioning/safe_positioning.rds")
+
+ggplot() +
+  geom_point(data = bip_full |> filter(play_made_by != "Other"), aes(x = location_x, y = location_y), alpha = 0.1) +
+  geom_point(data = safe_positioning, aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  facet_wrap(~ play_made_by) +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+```

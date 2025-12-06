@@ -1,0 +1,387 @@
+---
+title: "Modeling the Probability of a Ground Ball Being a Successful Play"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(broom.mixed)
+library(brms)
+
+bip_gb <- readRDS("statcast_data/bip_gb.rds")
+
+safe_positioning <- readRDS("statcast_data/player_positioning/safe_positioning.rds")
+```
+
+## Example: Successful Play Probability Model for SS in 2025
+
+```{r}
+# Fitting a model for shortstops (SS) in 2025
+
+pos_ss <- safe_positioning |>
+  filter(play_made_by == "SS")
+
+bip_gb_ss_2025 <- bip_gb |>
+  filter(
+    game_year == 2025,
+    (successful_play == 1 & play_made_by == "SS") | (successful_play == 0)
+  ) |>
+  mutate(
+    pos_x = pos_ss$pos_x,
+    pos_y = pos_ss$pos_y,
+    pos_angle = pos_ss$pos_angle,
+    theta = abs(pos_angle - spray_angle),
+    move_left = ifelse(spray_angle < pos_angle, 1, 0),
+    fielder_id = as.factor(fielder_6)
+  ) |>
+  # filter out NA for all variables used in the model
+  filter(
+    !is.na(launch_speed),
+    !is.na(theta),
+    theta <= 45
+  ) |>
+  # scaling continuous variables
+  mutate(
+    launch_speed_scaled = scale(launch_speed)[,1],
+    theta_scaled = scale(theta)[,1]
+  )
+
+players_num_plays <- bip_gb_ss_2025 |>
+  group_by(fielder_id) |>
+  summarise(num_plays = n()) |>
+  arrange(num_plays) |>
+  filter(num_plays >= 10) |>
+  pluck("fielder_id")
+
+bip_gb_ss_2025 <- bip_gb_ss_2025 |>
+  filter(fielder_id %in% players_num_plays)
+```
+
+
+```{r}
+# probability of a successful play by theta
+
+bip_gb_ss_2025 |>
+  ggplot(aes(x = launch_speed, color = as.factor(successful_play))) +
+  geom_density() +
+  theme_minimal()
+```
+
+### Probit Regression (without random effects)
+
+```{r}
+# Probit regression model without random effects
+model_ss_2025_re_none <- glm(
+  out_ss ~ theta_scaled + theta_scaled:move_left + 
+    theta_scaled:launch_speed_scaled + theta_scaled:launch_speed_scaled:move_left,
+  data = bip_gb_ss_2025,
+  family = binomial(link = "probit")
+)
+```
+
+
+### Probit Regression (with full random effects)
+
+```{r}
+# Probit regression model with full random effects
+model_ss_2025_re_full <- glmer(
+  out_ss ~ theta_scaled + theta_scaled:move_left + 
+    theta_scaled:launch_speed_scaled + theta_scaled:launch_speed_scaled:move_left +
+    (1 + theta_scaled || fielder_id),
+  data = bip_gb_ss_2025,
+  family = binomial(link = "probit"),
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+summary(model_ss_2025_re_full)
+```
+
+
+### Case Study: Jeremy Pena (2nd best) vs. Bo Bichette (2nd worst)
+
+```{r}
+
+# Creating a synthetic dataset with all plausible theta values for a fixed launch speed
+launch_speed <- 90
+theta_values <- seq(-35, 35, by = 0.1)
+player_ids <- c(665161, 666182)  # Jeremy Pena and Bo Bichette
+
+synthetic_data <- expand.grid(
+  theta = theta_values,
+  fielder_id = player_ids
+  ) |>
+  mutate(
+    launch_speed = launch_speed,
+    move_left = ifelse(theta < 0, 1, 0),
+    theta_abs = abs(theta),
+    theta_scaled = (theta_abs - mean(bip_gb_ss_2025$theta)) / sd(bip_gb_ss_2025$theta),
+    launch_speed_scaled = (launch_speed - mean(bip_gb_ss_2025$launch_speed)) / sd(bip_gb_ss_2025$launch_speed)
+  )
+
+synthetic_data <- synthetic_data |>
+  mutate(
+    prob_play_avg = predict(model_ss_2025_re_none, newdata = synthetic_data, type = "response")
+  )
+
+# Predicting probabilities for the synthetic dataset
+predictions <- synthetic_data |>
+  mutate(
+    prob_play_player = predict(model_ss_2025_re_full, newdata = synthetic_data, type = "response")
+  )
+
+# three curves, one for the average, and one for each player
+ggplot(predictions, aes(x = theta, y = prob_play_player, color = as.factor(fielder_id))) +
+  geom_smooth() +
+  geom_smooth(aes(y = prob_play_avg), color = "black", linetype = "dashed", size = 1) +
+  labs(
+    title = "Predicted Probability of Successful Play vs. Theta",
+    x = "Theta (degrees)",
+    y = "Predicted Probability of Successful Play",
+    color = "Fielder ID"
+  ) +
+  scale_color_manual(
+    values = c("665161" = "blue", "666182" = "red"),
+    labels = c("665161" = "Jeremy Pena", "666182" = "Bo Bichette")
+  ) +
+  theme_minimal()
+```
+
+### Visualizing Random Intercepts
+
+```{r}
+
+# get random effects with standard errors for each fielder
+re_fielder <- ranef(model_ss_2025_re_full, condVar = TRUE)$fielder_id
+
+se_fielder <- sqrt(sapply(attr(re_fielder, "postVar"), function(x) x[1, 1, ]))
+
+fielder_effects <- data.frame(
+  fielder_id = rownames(re_fielder),
+  random_intercept = re_fielder[, 1],
+  random_theta = re_fielder[, 2],
+  se = se_fielder
+)
+
+```
+
+```{r}
+#| label: fig-random-intercepts
+#| fig-cap: "Random Intercepts for SS Fielders in 2025 with 95% Confidence Intervals"
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(fielder_effects, aes(x = reorder(fielder_id, random_intercept), y = random_intercept)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = random_intercept - 1.96 * `se..Intercept.`, ymax = random_intercept + 1.96 * `se..Intercept.`), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Random Intercepts for SS Fielders with 95% CI",
+    x = "Fielder ID",
+    y = "Random Intercept (u_i)"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank()
+  )
+```
+
+```{r}
+#| label: fig-random-slopes
+#| fig-cap: "Random Slopes for Theta SS Fielders in 2025 with 95% Confidence Intervals"
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(fielder_effects, aes(x = reorder(fielder_id, random_theta), y = random_theta)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = random_theta - 1.96 * `se.theta_scaled`, ymax = random_theta + 1.96 * `se.theta_scaled`), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Random Slopes for Theta SS Fielders with 95% CI",
+    x = "Fielder ID",
+    y = "Random Slope (u_theta)"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank()
+  )
+```
+
+
+
+
+```{r}
+#| eval: FALSE
+
+# Function to calculate 
+fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls) {
+  
+  # Filter positioning data for the relevant year and position
+  pos <- positioning_data |>
+    filter(play_made_by == !!position)
+  
+  # Merge position coordinates onto play data, filter to year, and compute features
+  play_data <- bip_data |>
+    filter(
+      game_year == year,
+      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
+    ) |>
+    mutate(
+      pos_x = pos$pos_x,
+      pos_y = pos$pos_y,
+      pos_angle = pos$pos_angle,
+      theta = abs(pos_angle - spray_angle),
+      move_left = ifelse(spray_angle < pos_angle, 1, 0),
+      fielder_id = case_when(
+        position == "1B" ~ fielder_3,
+        position == "2B" ~ fielder_4,
+        position == "3B" ~ fielder_5,
+        position == "SS" ~ fielder_6,
+        TRUE ~ NA
+      )
+    ) |>
+    # scaling continuous variables
+    mutate(
+      launch_speed = scale(launch_speed)[,1],
+      theta = scale(theta)[,1]
+    ) |>
+    # filter out NA for all variables used in the model
+    filter(
+      !is.na(fielder_id),
+      !is.na(launch_speed),
+      !is.na(theta)
+    )
+  
+  # Create the outcome variable name dynamically
+  outcome_var <- paste0("out_", str_to_lower(position))
+  
+  # -------------------------- RUN EXPECTANCY MODEL ----------------------------
+  
+  mod_run_value <- gam(delta_run_exp ~ s(launch_speed) +
+                                       s(spray_angle) + 
+                                       launch_speed:spray_angle,
+                       data = bip_gb)
+  
+  # ------------------------- POPULATION LEVEL MODEL ---------------------------
+  formula_str_avg <- paste0(
+    outcome_var, " ~ 1 + theta + theta:move_left + ",
+    "theta:launch_speed + theta:launch_speed:move_left + "
+  )
+  
+  mod_avg <- glmer(
+    formula = as.formula(formula_str_avg),
+    data = play_data,
+    family = binomial(link = "probit"),
+    control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+  )
+  
+  # ------------------------ FULL RANDOM EFFECTS MODEL -------------------------
+  formula_str_player <- paste0(
+    outcome_var, " ~ 1 + theta + theta:move_left + ",
+    "theta:launch_speed + theta:launch_speed:move_left + ",
+    "(1 + theta | fielder_id)"
+  )
+  
+  mod_player <- glmer(
+    formula = as.formula(formula_str_player),
+    data = play_data,
+    family = binomial(link = "probit"),
+    control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+  )
+  
+  
+  # ---------------------- CALCULATING SAFE METRICS ----------------------------
+  
+  batted_balls <- batted_balls |>
+    mutate(
+      pos_angle = pos$pos_angle,
+      theta = abs(pos_angle - spray_angle),
+      move_left = ifelse(spray_angle < pos_angle, 1, 0),
+      # standardize variables based on training data
+      launch_speed = (launch_speed - mean(play_data$launch_speed)) / sd(play_data$launch_speed),
+      theta = (theta - mean(play_data$theta)) / sd(play_data$theta),
+      run_value = predict(mod_run_value, newdata = batted_balls),
+      prob_play_avg = predict(mod_avg, newdata = batted_balls, type = "response")
+    )
+  
+  fielders <- unique(bip_data$fielder_id)
+  
+  # Set up a data frame to store SAFE results
+  safe_results <- data.frame()
+  
+  for (fielder in fielders) {
+    
+    batted_balls |>
+      mutate(
+        fielder_id = fielder,
+        prob_play_player = predict(mod_player, newdata = batted_balls, type = "response"),
+        prob_play_added = prob_play_player - prob_play_avg,
+        SAFE = prob_play_added * run_value
+      ) |>
+      summarize(
+        SAFE = sum(SAFE, na.rm = TRUE),
+        num_plays = n()
+      )
+    
+    # append fielderid, position, SAFE, and num_plays to safe_results
+    safe_results <- rbind(safe_results,
+                          data.frame(
+                            fielder_id = fielder,
+                            position = position,
+                            SAFE = sum(SAFE, na.rm = TRUE),
+                            num_plays = n()
+                          ))
+    
+  }
+  
+  
+  
+}
+```
+
+
+```{r}
+#| eval: FALSE
+years <- c(2023, 2024, 2025)
+positions <- c("1B", "2B", "3B", "SS")
+
+
+
+
+# -------------------------- SAFE POSITIONING DATA -----------------------------
+
+for (year in years) {
+  for (position in positions) {
+    bip_gb_year <- bip_gb |>
+      filter(game_year == year)
+    
+    safe_positioning_year <- safe_positioning |>
+      filter(game_year == year, play_made_by == position)
+    
+    safe_results <- fit_SAFE(
+      bip_data = bip_gb,
+      year = year,
+      position = position,
+      positioning_data = safe_positioning_year,
+      batted_balls = bip_gb
+    )
+    
+    # Save the SAFE results
+    saveRDS(
+      safe_results,
+      file = paste0("statcast_data/safe_positioning/safe_", position, "_", year, ".rds")
+    )
+  }
+}
+
+# ------------------------- STATCAST POSITIONING DATA --------------------------
+
+sc_positioning <- readRDS("statcast_data/player_positioning/sc_positioning.rds")
+
+
+
+
+```
+
