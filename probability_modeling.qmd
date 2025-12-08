@@ -7,7 +7,8 @@ format: html
 library(tidyverse)
 library(lme4)
 library(broom.mixed)
-library(brms)
+library(mgcv)
+library(ks)
 
 bip_gb <- readRDS("statcast_data/bip_gb.rds")
 
@@ -67,6 +68,14 @@ bip_gb_ss_2025 |>
   geom_density() +
   theme_minimal()
 ```
+
+## Data Wrangling
+
+```{r}
+bip_gb <- bip_gb |>
+  filter(!is.na(launch_speed))
+```
+
 
 ### Probit Regression (without random effects)
 
@@ -211,27 +220,146 @@ ggplot(fielder_effects, aes(x = reorder(fielder_id, random_theta), y = random_th
 
 
 
+### 2D Kernel Density of Ground Balls by Spray Angle and Launch Speed
 
 ```{r}
-#| eval: FALSE
+# Fitting 2D kernel density equations for spray angle and launch speed
 
-# Function to calculate 
-fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls) {
+bip_gb <- bip_gb |> filter(
+  !is.na(spray_angle),
+  !is.na(launch_speed)
+)
+
+XY <- cbind(bip_gb$spray_angle, bip_gb$launch_speed)
+kde_fit <- kde(x = XY)
+
+# Search grid
+launch_speeds <- seq(50, 110, 1)
+spray_angles  <- seq(-45, 45, 1)
+
+batted_balls <- expand.grid(
+  spray_angle = spray_angles,
+  launch_speed = launch_speeds
+)
+
+# Evaluate KDE directly at each grid point
+batted_balls$density <- predict(
+  kde_fit,
+  x = cbind(batted_balls$spray_angle,
+            batted_balls$launch_speed)
+)
+
+# plot the densities
+ggplot(batted_balls, aes(x = spray_angle, y = launch_speed, fill = density)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(
+    title = "2D Kernel Density Estimate of Ground Balls by Spray Angle and Launch Speed",
+    x = "Spray Angle (degrees)",
+    y = "Launch Speed (mph)",
+    fill = "Density"
+  ) +
+  theme_minimal()
+
+```
+
+
+### Fitting a Run Value Model
+
+```{r}
+# Fitting a run expectancy model
+mod_run_value <- gam(delta_run_exp ~ s(launch_speed) +
+                                     s(spray_angle) + 
+                                     launch_speed:spray_angle,
+                     data = bip_gb)
+
+batted_balls$run_value <- predict(mod_run_value, newdata = batted_balls)
+```
+
+## Testing on SS in 2025
+
+```{r}
+# Merge position coordinates onto play data, filter to year, and compute features
   
-  # Filter positioning data for the relevant year and position
-  pos <- positioning_data |>
-    filter(play_made_by == !!position)
+  # ------------------------ FULL RANDOM EFFECTS MODEL -------------------------
+  # Create the outcome variable name dynamically
+  outcome_var <- paste0("out_", str_to_lower("SS"))
+  
+  formula_str_player <- paste0(
+    outcome_var, " ~ 1 + theta_scaled + theta_scaled:move_left + ",
+    "theta_scaled:launch_speed_scaled + theta_scaled:launch_speed_scaled:move_left + ",
+    "(1 + theta_scaled || fielder_id)"
+  )
+  
+  mod_player <- glmer(
+    formula = as.formula(formula_str_player),
+    data = bip_gb_ss_2025,
+    family = binomial(link = "probit"),
+    control = glmerControl(optimizer = c("bobyqa", "Nelder_Mead"),
+                           optCtrl = list(maxfun = 2e5))
+  )
+  
+  
+  # ---------------------- CALCULATING SAFE METRICS ----------------------------
+  
+  batted_balls <- batted_balls |>
+    mutate(
+      pos_angle = pos_ss$pos_angle,
+      theta = abs(pos_angle - spray_angle),
+      move_left = ifelse(spray_angle < pos_angle, 1, 0),
+      # standardize variables based on training data
+      launch_speed_scaled = (launch_speed - mean(bip_gb_ss_2025$launch_speed)) / sd(bip_gb_ss_2025$launch_speed),
+      theta_scaled = (theta - mean(bip_gb_ss_2025$theta)) / sd(bip_gb_ss_2025$theta)
+    )
+  
+  fielders <- unique(bip_gb_ss_2025$fielder_id)
+  
+  # Set up a data frame to store SAFE results
+  safe_results <- data.frame()
+  
+  for (fielder_id in fielders) {
+    
+    bb_temp <- batted_balls
+    
+    bb_temp$fielder_id <- factor(fielder_id, levels = levels(bip_gb_ss_2025$fielder_id))
+    
+    bb_temp <- bb_temp |>
+      mutate(
+        prob_play_player = predict(mod_player, newdata = bb_temp, type = "response"),
+        prob_play_avg = predict(mod_player, newdata = bb_temp, type = "response", re.form = NA),
+        prob_play_added = prob_play_player - prob_play_avg,
+        SAFE = prob_play_added * run_value * density
+      ) 
+    
+    player_res <- bb_temp |>
+      summarize(
+        SAFE = sum(SAFE)
+      )
+    
+    # append fielderid, position, SAFE, and num_plays to safe_results
+    safe_results <- rbind(safe_results, data.frame(
+      fielder_id = fielder_id,
+      position = "SS",
+      year = 2025,
+      SAFE = player_res$SAFE
+    ))
+    
+  }
+```
+
+
+```{r}
+fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls, max_retries = 3) {
   
   # Merge position coordinates onto play data, filter to year, and compute features
   play_data <- bip_data |>
     filter(
-      game_year == year,
       (successful_play == 1 & play_made_by == position) | (successful_play == 0)
     ) |>
     mutate(
-      pos_x = pos$pos_x,
-      pos_y = pos$pos_y,
-      pos_angle = pos$pos_angle,
+      pos_x = positioning_data$pos_x,
+      pos_y = positioning_data$pos_y,
+      pos_angle = positioning_data$pos_angle,
       theta = abs(pos_angle - spray_angle),
       move_left = ifelse(spray_angle < pos_angle, 1, 0),
       fielder_id = case_when(
@@ -244,8 +372,8 @@ fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls) {
     ) |>
     # scaling continuous variables
     mutate(
-      launch_speed = scale(launch_speed)[,1],
-      theta = scale(theta)[,1]
+      launch_speed_scaled = scale(launch_speed)[,1],
+      theta_scaled = scale(theta)[,1]
     ) |>
     # filter out NA for all variables used in the model
     filter(
@@ -254,89 +382,157 @@ fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls) {
       !is.na(theta)
     )
   
+  players_num_plays <- play_data |>
+    group_by(fielder_id) |>
+    summarise(num_plays = n()) |>
+    arrange(num_plays) |>
+    filter(num_plays >= 10) |>
+    pluck("fielder_id")
+
+  play_data <- play_data |>
+    filter(fielder_id %in% players_num_plays) |>
+    mutate(fielder_id = factor(fielder_id))  # Ensure it's a factor
+  
+  # ------------------------ FULL RANDOM EFFECTS MODEL -------------------------
+  
   # Create the outcome variable name dynamically
   outcome_var <- paste0("out_", str_to_lower(position))
   
-  # -------------------------- RUN EXPECTANCY MODEL ----------------------------
-  
-  mod_run_value <- gam(delta_run_exp ~ s(launch_speed) +
-                                       s(spray_angle) + 
-                                       launch_speed:spray_angle,
-                       data = bip_gb)
-  
-  # ------------------------- POPULATION LEVEL MODEL ---------------------------
-  formula_str_avg <- paste0(
-    outcome_var, " ~ 1 + theta + theta:move_left + ",
-    "theta:launch_speed + theta:launch_speed:move_left + "
-  )
-  
-  mod_avg <- glmer(
-    formula = as.formula(formula_str_avg),
-    data = play_data,
-    family = binomial(link = "probit"),
-    control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
-  )
-  
-  # ------------------------ FULL RANDOM EFFECTS MODEL -------------------------
   formula_str_player <- paste0(
-    outcome_var, " ~ 1 + theta + theta:move_left + ",
-    "theta:launch_speed + theta:launch_speed:move_left + ",
-    "(1 + theta | fielder_id)"
+    outcome_var, " ~ 1 + theta_scaled + theta_scaled:move_left + ",
+    "theta_scaled:launch_speed_scaled + theta_scaled:launch_speed_scaled:move_left + ",
+    "(1 + theta_scaled || fielder_id)"
   )
   
-  mod_player <- glmer(
-    formula = as.formula(formula_str_player),
-    data = play_data,
-    family = binomial(link = "probit"),
-    control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
-  )
+  mod_player <- NULL
+  attempt <- 1
+  
+  while(is.null(mod_player) && attempt <= max_retries) {
+    
+    tryCatch({
+      
+      if (attempt == 1) {
+        # First attempt: default bobyqa
+        message(paste("Fitting model for", position, year, "- Attempt", attempt))
+        mod_player <- glmer(
+          formula = as.formula(formula_str_player),
+          data = play_data,
+          family = binomial(link = "probit"),
+          control = glmerControl(
+            optimizer = "bobyqa",
+            optCtrl = list(maxfun = 2e5)
+          )
+        )
+        
+      } else if (attempt == 2) {
+        # Second attempt: Try nloptwrap optimizer
+        message(paste("Retrying with nloptwrap optimizer for", position, year))
+        mod_player <- glmer(
+          formula = as.formula(formula_str_player),
+          data = play_data,
+          family = binomial(link = "probit"),
+          control = glmerControl(
+            optimizer = "nloptwrap",
+            optCtrl = list(maxeval = 2e5)
+          )
+        )
+        
+      } else if (attempt == 3) {
+        # Third attempt: Simplify random effects (intercept only)
+        message(paste("Retrying with simplified random effects for", position, year))
+        formula_str_simple <- paste0(
+          outcome_var, " ~ 1 + theta_scaled + theta_scaled:move_left + ",
+          "theta_scaled:launch_speed_scaled + theta_scaled:launch_speed_scaled:move_left + ",
+          "(1 | fielder_id)"  # Only random intercept
+        )
+        mod_player <- glmer(
+          formula = as.formula(formula_str_simple),
+          data = play_data,
+          family = binomial(link = "probit"),
+          control = glmerControl(
+            optimizer = "bobyqa",
+            optCtrl = list(maxfun = 2e5)
+          )
+        )
+      }
+      
+    }, error = function(e) {
+      message(paste("Attempt", attempt, "failed for", position, year, ":", e$message))
+      mod_player <<- NULL
+    })
+    
+    attempt <- attempt + 1
+  }
+  
+  # If all attempts failed, return empty results
+  if (is.null(mod_player)) {
+    warning(paste("All attempts failed for", position, year, "- returning empty results"))
+    return(data.frame(
+      fielder_id = character(),
+      position = character(),
+      year = numeric(),
+      SAFE = numeric()
+    ))
+  }
+  
+  message(paste("Successfully fit model for", position, year))
   
   
   # ---------------------- CALCULATING SAFE METRICS ----------------------------
   
   batted_balls <- batted_balls |>
     mutate(
-      pos_angle = pos$pos_angle,
+      pos_angle = positioning_data$pos_angle,
       theta = abs(pos_angle - spray_angle),
       move_left = ifelse(spray_angle < pos_angle, 1, 0),
       # standardize variables based on training data
-      launch_speed = (launch_speed - mean(play_data$launch_speed)) / sd(play_data$launch_speed),
-      theta = (theta - mean(play_data$theta)) / sd(play_data$theta),
-      run_value = predict(mod_run_value, newdata = batted_balls),
-      prob_play_avg = predict(mod_avg, newdata = batted_balls, type = "response")
+      launch_speed_scaled = (launch_speed - mean(play_data$launch_speed, na.rm = TRUE)) / sd(play_data$launch_speed, na.rm = TRUE),
+      theta_scaled = (theta - mean(play_data$theta, na.rm = TRUE)) / sd(play_data$theta, na.rm = TRUE),
+      run_value = predict(mod_run_value, newdata = batted_balls)
     )
   
-  fielders <- unique(bip_data$fielder_id)
+  fielders <- unique(play_data$fielder_id)
   
   # Set up a data frame to store SAFE results
   safe_results <- data.frame()
   
   for (fielder in fielders) {
     
-    batted_balls |>
+    bb_temp <- batted_balls
+    
+    bb_temp$fielder_id <- factor(fielder, levels = levels(play_data$fielder_id))
+    
+    n_opportunities <- nrow(play_data |> filter(fielder_id == fielder))
+    
+    # Check that this fielder exists in the model
+    if (!(fielder %in% levels(play_data$fielder_id))) {
+      next
+    }
+    
+    bb_temp <- bb_temp |>
       mutate(
-        fielder_id = fielder,
-        prob_play_player = predict(mod_player, newdata = batted_balls, type = "response"),
+        prob_play_player = predict(mod_player, newdata = bb_temp, type = "response"),
+        prob_play_avg = predict(mod_player, newdata = bb_temp, type = "response", re.form = NA),
         prob_play_added = prob_play_player - prob_play_avg,
-        SAFE = prob_play_added * run_value
-      ) |>
+        SAFE = prob_play_added * run_value * density
+      ) 
+    
+    player_res <- bb_temp |>
       summarize(
-        SAFE = sum(SAFE, na.rm = TRUE),
-        num_plays = n()
+        SAFE = sum(SAFE, na.rm = TRUE) * n_opportunities
       )
     
     # append fielderid, position, SAFE, and num_plays to safe_results
-    safe_results <- rbind(safe_results,
-                          data.frame(
-                            fielder_id = fielder,
-                            position = position,
-                            SAFE = sum(SAFE, na.rm = TRUE),
-                            num_plays = n()
-                          ))
-    
+    safe_results <- rbind(safe_results, data.frame(
+      fielder_id = as.character(fielder),
+      position = position,
+      year = year,
+      SAFE = player_res$SAFE
+    ))
+
   }
   
-  
+  return(safe_results)
   
 }
 ```
@@ -345,35 +541,34 @@ fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls) {
 ```{r}
 #| eval: FALSE
 years <- c(2023, 2024, 2025)
-positions <- c("1B", "2B", "3B", "SS")
+positions <- c("1B", "2B", "SS", "3B")
 
-
-
-
-# -------------------------- SAFE POSITIONING DATA -----------------------------
+# Initialize results storage
+all_safe_results <- data.frame()
 
 for (year in years) {
+  
+  bip_gb_year <- bip_gb |>
+    filter(game_year == year)
+  
   for (position in positions) {
-    bip_gb_year <- bip_gb |>
-      filter(game_year == year)
     
-    safe_positioning_year <- safe_positioning |>
-      filter(game_year == year, play_made_by == position)
+    # FIX: Filter positioning data by year AND position appropriately
+    safe_pos_year <- safe_positioning |>
+      filter(play_made_by == !!position)  # Adjust this filter to match your data structure
     
     safe_results <- fit_SAFE(
-      bip_data = bip_gb,
+      bip_data = bip_gb_year,
       year = year,
       position = position,
-      positioning_data = safe_positioning_year,
-      batted_balls = bip_gb
+      positioning_data = safe_pos_year,
+      batted_balls = batted_balls
     )
     
-    # Save the SAFE results
-    saveRDS(
-      safe_results,
-      file = paste0("statcast_data/safe_positioning/safe_", position, "_", year, ".rds")
-    )
+    # Accumulate results
+    all_safe_results <- rbind(all_safe_results, safe_results)
   }
+  
 }
 
 # ------------------------- STATCAST POSITIONING DATA --------------------------
@@ -383,5 +578,18 @@ sc_positioning <- readRDS("statcast_data/player_positioning/sc_positioning.rds")
 
 
 
+```
+
+### Adjusting for the number of opportunities
+
+
+## Results
+
+```{r}
+
+all_safe_results |>
+  filter(year == 2023) |>
+  ggplot(aes(x = SAFE, color = position)) +
+  geom_density() 
 ```
 

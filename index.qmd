@@ -205,7 +205,7 @@ Finally, we calculate the SAFE value for each player $i$ at position $p$ in year
 For each combination of $\theta$ and $V$, we calculate the expected run value added/lost by player $i$ as:
 
 $$
-SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V)
+SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V)
 $$
 
 This gives us an overall estimate of the number of runs saved or cost by player $i$ at position $p$ in year $y$ based on their defensive performance on ground balls.
@@ -219,7 +219,7 @@ However, with the availability of player-specific positioning data from Baseball
 This allows us to capture the nuances of each player's defensive positioning, which may vary significantly from the average positioning for that position. 
 
 For this model extension, we follow the same model structure as before, but also incorporate the player-specific positioning data into the calculation of the distance, angle, and direction covariates.
-We hope that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball. 
+We propose that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball. 
 
 
 ## Results
