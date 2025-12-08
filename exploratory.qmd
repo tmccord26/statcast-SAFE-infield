@@ -29,7 +29,7 @@ bip_full |>
   ungroup() |>
   kable(
     booktabs = TRUE,
-    col.names = c("Year", "Ground Balls", "Successful", "% Successful", "Outs at 1B", "Outs at 2B", "Outs at SS", "Outs at 3B"),
+    col.names = c("Year", "Ground Balls", "Successful", "% Successful", "Outs by 1B", "Outs by 2B", "Outs by SS", "Outs by 3B"),
     )
 ```
 
@@ -72,4 +72,58 @@ ggplot() +
     axis.title.x = element_blank(),
     axis.title.y = element_blank()
   )
+
+# plot 3B
+p_3b <- ggplot() +
+  geom_point(data = bip_full |> filter(play_made_by == "3B"), aes(x = location_x, y = location_y), alpha = 0.1) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "3B"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+p_ss <- ggplot() +
+  geom_point(data = bip_full |> filter(play_made_by == "SS"), aes(x = location_x, y = location_y), alpha = 0.1) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "SS"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+p_2b <- ggplot() +
+  geom_point(data = bip_full |> filter(play_made_by == "2B"), aes(x = location_x, y = location_y), alpha = 0.1) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "2B"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+p_1b <- ggplot() +
+  geom_point(data = bip_full |> filter(play_made_by == "1B"), aes(x = location_x, y = location_y), alpha = 0.1) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "1B"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
+  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  theme_classic() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+# grid arrange
+library(gridExtra)
+grid.arrange(p_1b, p_2b, p_ss, p_3b, ncol = 4)
+  
 ```

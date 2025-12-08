@@ -28,7 +28,8 @@ wrangle_bip_year <- function(year) {
       ),
       location_x = 2.5 * (hc_x - 125.42),
       location_y = 2.5 * (198.27 - hc_y),
-      spray_angle = atan(location_x / location_y) * 180 / pi
+      spray_angle = atan(location_x / location_y) * 180 / pi,
+      delta_run_exp = -delta_run_exp
     ) |>
     filter(abs(spray_angle) <= 45) |>
     select(game_year, events, bb_type, successful_play, play_made_by, 

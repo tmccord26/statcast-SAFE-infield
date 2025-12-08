@@ -93,11 +93,12 @@ model_ss_2025_re_none <- glm(
 ### Probit Regression (with full random effects)
 
 ```{r}
+
 # Probit regression model with full random effects
 model_ss_2025_re_full <- glmer(
   out_ss ~ theta_scaled + theta_scaled:move_left + 
     theta_scaled:launch_speed_scaled + theta_scaled:launch_speed_scaled:move_left +
-    (1 + theta_scaled || fielder_id),
+    (1 | fielder_id),
   data = bip_gb_ss_2025,
   family = binomial(link = "probit"),
   control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
@@ -225,10 +226,11 @@ ggplot(fielder_effects, aes(x = reorder(fielder_id, random_theta), y = random_th
 ```{r}
 # Fitting 2D kernel density equations for spray angle and launch speed
 
-bip_gb <- bip_gb |> filter(
-  !is.na(spray_angle),
-  !is.na(launch_speed)
-)
+bip_gb <- bip_gb |> 
+  filter(
+    !is.na(spray_angle),
+    !is.na(launch_speed)
+  )
 
 XY <- cbind(bip_gb$spray_angle, bip_gb$launch_speed)
 kde_fit <- kde(x = XY)
@@ -279,6 +281,7 @@ batted_balls$run_value <- predict(mod_run_value, newdata = batted_balls)
 ## Testing on SS in 2025
 
 ```{r}
+#| eval: FALSE
 # Merge position coordinates onto play data, filter to year, and compute features
   
   # ------------------------ FULL RANDOM EFFECTS MODEL -------------------------
@@ -349,6 +352,7 @@ batted_balls$run_value <- predict(mod_run_value, newdata = batted_balls)
 
 
 ```{r}
+#| eval: FALSE
 fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls, max_retries = 3) {
   
   # Merge position coordinates onto play data, filter to year, and compute features
@@ -425,20 +429,7 @@ fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls, m
         )
         
       } else if (attempt == 2) {
-        # Second attempt: Try nloptwrap optimizer
-        message(paste("Retrying with nloptwrap optimizer for", position, year))
-        mod_player <- glmer(
-          formula = as.formula(formula_str_player),
-          data = play_data,
-          family = binomial(link = "probit"),
-          control = glmerControl(
-            optimizer = "nloptwrap",
-            optCtrl = list(maxeval = 2e5)
-          )
-        )
-        
-      } else if (attempt == 3) {
-        # Third attempt: Simplify random effects (intercept only)
+        # Second attempt: Simplify random effects (intercept only)
         message(paste("Retrying with simplified random effects for", position, year))
         formula_str_simple <- paste0(
           outcome_var, " ~ 1 + theta_scaled + theta_scaled:move_left + ",
@@ -588,8 +579,13 @@ sc_positioning <- readRDS("statcast_data/player_positioning/sc_positioning.rds")
 ```{r}
 
 all_safe_results |>
-  filter(year == 2023) |>
+  filter(year == 2024) |>
   ggplot(aes(x = SAFE, color = position)) +
   geom_density() 
 ```
 
+## Rethinking SAFE: Estimate over all batted balls rather than a synthetic space
+
+This means that we can just iterate over all batted balls rather than creating a synthetic space weighted by density. 
+Then, we don't need to calculate density.
+Then, for a given ground ball, we have two probabilities and an estimated run value. 

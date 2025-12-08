@@ -40,7 +40,7 @@ In 2003, Mitchel Lichtman introduced the Ultimate Zone Rating (UZR) metric, whic
 This run-based approach allowed statisticians to understand the stakes of each defensive play.
 However, many criticisms of UZR exist, including the arbitrary nature of the zone definitions and the discretization of a continuous space.
 
-In 2009, @jensen_2009 introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework, which built upon UZR by using a hierarchical Bayesian model to evaluate defense as a continuous surface.
+@jensen_2009 introduced the SAFE (Spatially Adjusted Fielding Evaluation) framework, which built upon UZR by using a hierarchical Bayesian model to evaluate defense as a continuous surface.
 The SAFE framework uses estimates of player location, ball location, and ball velocity to model the probability of a fielder making a play on a batted ball, allowing for a more nuanced evaluation of defensive performance.
 The model combines the probability of a made play with the run consequences of that play to estimate the overall defensive contribution of a player in terms of runs saved or allowed.
 The hierarchical Bayesian structure also allows for the sharing of information across players and positions, improving estimates for players with limited data.
@@ -48,7 +48,7 @@ However, this model is limited by the accuracy and reliability of the underlying
 These data, provided by Baseball Info Solutions, used hand-annotated video footage to estimate ball location and velocity.
 Even then, the starting location of the fielder at a given position was estimated by the authors by using the average location of balls caught by that position.
 
-Notably, the results of @jensen_2009 showed that the autocorrelation of defensive metrics from year to year was quite low for infielders. 
+Notably, the results of @jensen_2009 showed that the autocorrelation of defensive metrics from year-to-year was quite low for infielders. 
 This shortcoming suggests that the original SAFE model performed poorly in evaluating infield defense, relative to outfield defense.
 
 Since the publication of the SAFE framework, MLB has introduced Statcast, a high-resolution player tracking system that uses a combination of radar and camera technology to track the movement of players and the ball in real-time (need to find a citation).
@@ -84,12 +84,12 @@ Using these data, we derive the following factors for each batted ball:
 
 - **successful_play**: A binary indicator of whether the fielder successfully made a play on the batted ball (1 = successful play, 0 = unsuccessful play). For ground balls, this is defined as whether the fielder was able to field the ball and record at least one out. 
 - **play_made_by**: The position (1B, 2B, SS, 3B) of the fielder who made the play on the batted ball (Other, if play is not successful or play is made by another position).
-- **location_x, location_y**: The (x, y) coordinates of the batted ball when it reaches the fielder's location, measured in feet from home plate. The origin (0, 0) is at home plate, with the positive x-axis extending towards first base and the positive y-axis extending towards second base.
-- **spray_angle**: Derived from the (x, y) coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line is 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees. 
+- **location_x, location_y**: The $(x, y)$ coordinates of the batted ball when it reaches the fielder's location, measured in feet from home plate. The origin (0, 0) is at home plate, with the positive x-axis extending towards first base and the positive y-axis extending towards second base.
+- **spray_angle**: Derived from the $(x, y)$ coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line is 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees. 
 - **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 - **out_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
 
-The resulting dataset contains 21 variables from 145070 ground balls hit into fair territory from the 2023-2025 seasons. 
+The resulting dataset contains 21 variables from 145,070 ground balls hit into fair territory from the 2023-2025 seasons. 
 
 {{< embed exploratory.qmd#tbl-bip-summary >}}
 
@@ -100,7 +100,7 @@ The proportion of ground balls resulting in outs and the number of outs recorded
 
 {{< embed exploratory.qmd#fig-fielder-positioning >}}
 
-[Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average (x, y) coordinates of all batted balls successfully fielded by that position. 
+[Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average $(x, y)$ coordinates of all batted balls successfully fielded by that position. 
 @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
 Note that although our analysis is only focused on ground balls, we use all batted balls successfully fielded by each position to estimate the average starting location of the fielder at that position, as in the original SAFE framework.
 This intuitively makes sense, as the starting position of the fielder should not depend on the type of batted ball hit.
@@ -120,9 +120,9 @@ $$
 
 where $PPA_{i,p,y}$ is the play probability added for player $i$ at position $p$ in year $y$, $\Delta_{RE}$ is the change in run expectancy for a batted ball with spray angle $\theta$ and velocity $V$, and $f(\theta, V)$ is the density of batted balls hit with spray angle $\theta$ and velocity $V$.
 
-Our paper first estimates the probability that a fielder makes a successful play on a batted ball for each combination of year and position.
+We first estimate the probability that a fielder makes a successful play on a batted ball for each combination of year and position.
 Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
-This follows with the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
+This follows from the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
 It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
 We also only consider batted balls hit into fair territory and within 45 degrees of the fielder's position.
 This limits our model to only plays that a player at that position would be eligible for. 
@@ -188,9 +188,9 @@ However, the ground ball hit closer to the left field foul line is more likely t
 Although we would consider these plays equally difficult, the run consequences of each play are quite different.
 Then, it's important to weight each possible play by its run consequence to get a more accurate estimate of the overall defensive contribution of each player.
 
-Each play is associated with a change in expected runs for the offensive team, which we denote as $\Delta_{RE}$.
-This value is calculated as the difference in run expectancy before and after the play.
-We use a generalized additive model (GAM) to estimate $\Delta_{RE}$ of a ground ball $j$ based on its launch speed $V_j$ and spray angle $\theta_j$:
+Each play is associated with a change in expected runs for the defensive team, which we denote as $\Delta_{RE}$.
+This value is calculated as the difference in run expectancy before and after the play, where positive values represent runs saved by the defense and negative values represent runs cost by the defense as a result of the play.
+We fit a generalized additive model (GAM) to estimate $\Delta_{RE}$ of a ground ball $j$ based on its launch speed $V_j$ and spray angle $\theta_j$:
 
 $$
 \Delta_{RE, j} = f(V_j) + f(\theta_j) + V_j\theta_j + \epsilon
