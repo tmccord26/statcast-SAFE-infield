@@ -11,9 +11,13 @@ wrangle_positioning <- function(year, batter_hand) {
       pos_x = avg_norm_start_distance * sin(avg_norm_start_angle * pi / 180),
       pos_y = avg_norm_start_distance * cos(avg_norm_start_angle * pi / 180),
       year = year,
-      batter_hand = batter_hand
+      batter_hand = case_when(
+        batter_hand == "lhh" ~ "L",
+        batter_hand == "rhh" ~ "R"
+      ),
+      pos_angle = avg_norm_start_angle,
     ) |>
-    select(name_fielder, fielder_id, position, year, batter_hand, pos_x, pos_y, avg_norm_start_distance, avg_norm_start_angle)
+    select(name_fielder, fielder_id, position, year, batter_hand, pos_x, pos_y, avg_norm_start_distance, pos_angle)
   
 }
 

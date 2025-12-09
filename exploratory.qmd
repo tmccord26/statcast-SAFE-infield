@@ -63,67 +63,90 @@ bip_full |>
 
 safe_positioning <- read_rds("statcast_data/player_positioning/safe_positioning.rds")
 
-ggplot() +
-  geom_point(data = bip_full |> filter(play_made_by != "Other"), aes(x = location_x, y = location_y), alpha = 0.1) +
-  geom_point(data = safe_positioning, aes(x = pos_x, y = pos_y), color = "red", size = 3) +
-  facet_wrap(~ play_made_by) +
-  theme_classic() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
-
 # plot 3B
 p_3b <- ggplot() +
-  geom_point(data = bip_full |> filter(play_made_by == "3B"), aes(x = location_x, y = location_y), alpha = 0.1) +
-  geom_point(data = safe_positioning |> filter(play_made_by == "3B"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
-  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  geom_point(data = bip_full |> filter(play_made_by == "3B"), 
+             aes(x = location_x, y = location_y), alpha = 0.01) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "3B"), 
+             aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 5, xmax = -63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = -5, xmax = 5, 
+           ymin = 127.28 - 5, ymax = 127.28 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = 63.64 - 5, xmax = 63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
   theme_classic() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "3B") +
+  coord_fixed(ratio = 1, xlim = c(-100, 100), ylim = c(0, 175))
 
+# plot SS
 p_ss <- ggplot() +
-  geom_point(data = bip_full |> filter(play_made_by == "SS"), aes(x = location_x, y = location_y), alpha = 0.1) +
-  geom_point(data = safe_positioning |> filter(play_made_by == "SS"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
-  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  geom_point(data = bip_full |> filter(play_made_by == "SS"), 
+             aes(x = location_x, y = location_y), alpha = 0.01) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "SS"), 
+             aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 5, xmax = -63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = -5, xmax = 5, 
+           ymin = 127.28 - 5, ymax = 127.28 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = 63.64 - 5, xmax = 63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
   theme_classic() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "SS") +
+  coord_fixed(ratio = 1, xlim = c(-100, 100), ylim = c(0, 175))
 
 p_2b <- ggplot() +
-  geom_point(data = bip_full |> filter(play_made_by == "2B"), aes(x = location_x, y = location_y), alpha = 0.1) +
-  geom_point(data = safe_positioning |> filter(play_made_by == "2B"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
-  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  geom_point(data = bip_full |> filter(play_made_by == "2B"), 
+             aes(x = location_x, y = location_y), alpha = 0.01) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "2B"), 
+             aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 5, xmax = -63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = -5, xmax = 5, 
+           ymin = 127.28 - 5, ymax = 127.28 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = 63.64 - 5, xmax = 63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
   theme_classic() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "2B") +
+  coord_fixed(ratio = 1, xlim = c(-100, 100), ylim = c(0, 175))
 
 p_1b <- ggplot() +
-  geom_point(data = bip_full |> filter(play_made_by == "1B"), aes(x = location_x, y = location_y), alpha = 0.1) +
-  geom_point(data = safe_positioning |> filter(play_made_by == "1B"), aes(x = pos_x, y = pos_y), color = "red", size = 3) +
-  annotate("rect", xmin = -63.64 - 3, xmax = -63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = -3, xmax = 3, ymin = 127.28 - 3, ymax = 127.28 + 3, alpha = 0.8, fill = "blue") +
-  annotate("rect", xmin = 63.64 - 3, xmax = 63.64 + 3, ymin = 63.64 - 3, ymax = 63.64 + 3, alpha = 0.8, fill = "blue") +
+  geom_point(data = bip_full |> filter(play_made_by == "1B"), 
+             aes(x = location_x, y = location_y), alpha = 0.01) +
+  geom_point(data = safe_positioning |> filter(play_made_by == "1B"), 
+             aes(x = pos_x, y = pos_y), color = "red", size = 3) +
+  annotate("rect", xmin = -63.64 - 5, xmax = -63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = -5, xmax = 5, 
+           ymin = 127.28 - 5, ymax = 127.28 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
+  annotate("rect", xmin = 63.64 - 5, xmax = 63.64 + 5, 
+           ymin = 63.64 - 5, ymax = 63.64 + 5, 
+           alpha = 0.9, fill = "blue", color = "black", linewidth = 0.5) +
   theme_classic() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "1B") +
+  coord_fixed(ratio = 1, xlim = c(-100, 100), ylim = c(0, 175))
 
 # grid arrange
 library(gridExtra)
-grid.arrange(p_1b, p_2b, p_ss, p_3b, ncol = 4)
+grid.arrange(p_3b, p_ss, p_2b, p_1b, ncol = 4)
   
 ```

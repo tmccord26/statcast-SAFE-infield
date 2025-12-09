@@ -31,7 +31,11 @@ wrangle_bip_year <- function(year) {
       spray_angle = atan(location_x / location_y) * 180 / pi,
       delta_run_exp = -delta_run_exp
     ) |>
-    filter(abs(spray_angle) <= 45) |>
+    filter(
+      abs(spray_angle) <= 45, 
+      !is.na(launch_speed),
+      !is.na(spray_angle)
+    ) |>
     select(game_year, events, bb_type, successful_play, play_made_by, 
            fielder_3:fielder_6, out_1b:out_ss, location_x, location_y, 
            hit_distance_sc, spray_angle, launch_speed, launch_angle, delta_run_exp, stand)

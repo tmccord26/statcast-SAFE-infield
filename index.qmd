@@ -14,11 +14,6 @@ bibliography: references.bib
 number-sections: true
 ---
 
-```{r}
-library(tidyverse)
-library(kableExtra)
-library(lme4)
-```
 
 
 ## Introduction
@@ -56,11 +51,9 @@ Statcast provides a wealth of data that was previously unavailable, including pr
 This data has the potential to revolutionize defensive evaluation in baseball, allowing for more accurate and reliable estimates of defensive performance.
 
 The goal of this paper is to modernize the original SAFE framework for infielders using three years of Statcast data (2023-2025).
-We are interested in evaluating the number of runs saved or cost by infielders at each position (1B, 2B, SS, 3B) using updated data and methods.
-We fit various hierarchical probit regression models similar to that of @jensen_2009 to estimate the probability of a ground ball resulting in a successful play by the fielder at each infield position (1B, 2B, SS, 3B).
+We estimate the number of runs saved or cost by infielders at each position (1B, 2B, SS, 3B) in each year from 2023-2025 using modern data.
+We fit hierarchical probit regression models similar to that of @jensen_2009 to estimate the probability of a ground ball resulting in a successful play by the fielder at each infield position (1B, 2B, SS, 3B).
 We then convert these probability estimates into run values by estimating the run consequence of a given ground ball based on its location and velocity.
-
-For each given player at each position and year, we estimate their overall defensive contribution in terms of runs saved or cost using the SAFE framework.
 
 Further, we extend the original framework to include player-specific positioning data from Baseball Savant to improve our estimates of fielder starting locations.
 We compare the results of these models to assess the impact of using high-resolution tracking data and updated positioning information on defensive evaluation.
@@ -89,7 +82,7 @@ Using these data, we derive the following factors for each batted ball:
 - **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 - **out_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
 
-The resulting dataset contains 21 variables from 145,070 ground balls hit into fair territory from the 2023-2025 seasons. 
+The resulting dataset contains 21 variables from 144,169 ground balls hit into fair territory from the 2023-2025 seasons. 
 
 {{< embed exploratory.qmd#tbl-bip-summary >}}
 
@@ -100,19 +93,19 @@ The proportion of ground balls resulting in outs and the number of outs recorded
 
 {{< embed exploratory.qmd#fig-fielder-positioning >}}
 
-[Might get moved to a Methods section] Following the process outlined in @jensen_2009, we derive the starting location of the fielder at each position by calculating the average $(x, y)$ coordinates of all batted balls successfully fielded by that position. 
+We derive the starting location of the fielder at each position by calculating the average $(x, y)$ coordinates of all batted balls successfully fielded by that position, following the implementation by @jensen_2009.
 @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
 Note that although our analysis is only focused on ground balls, we use all batted balls successfully fielded by each position to estimate the average starting location of the fielder at that position, as in the original SAFE framework.
 This intuitively makes sense, as the starting position of the fielder should not depend on the type of batted ball hit.
 
+
 ## Methods
 
-To describe the modernization of the SAFE framework, we start with a technical overview of the original model from @jensen_2009.
-The original SAFE model follows a two-step process.
+The original SAFE framework follows a two-step process.
 The first step is to estimate the probability that a fielder makes a successful play on a ground ball using a hierarchical Bayesian probit regression model.
 The second step is to apply run expectancy values to estimate the run consequences of each play, which are then combined with the probability estimates to derive an overall defensive metric for each player.
 In other words, each player is assigned a positive or negative run value based on the expected number of runs they save or cost their team for a given play with respect to the difficulty of the play.
-Our goal is estimate SAFE values for each infielder in each year:
+We estimate SAFE values for each infielder in each year:
 
 $$
 SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V)
@@ -120,11 +113,10 @@ $$
 
 where $PPA_{i,p,y}$ is the play probability added for player $i$ at position $p$ in year $y$, $\Delta_{RE}$ is the change in run expectancy for a batted ball with spray angle $\theta$ and velocity $V$, and $f(\theta, V)$ is the density of batted balls hit with spray angle $\theta$ and velocity $V$.
 
-We first estimate the probability that a fielder makes a successful play on a batted ball for each combination of year and position.
 Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
 This follows from the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
 It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
-We also only consider batted balls hit into fair territory and within 45 degrees of the fielder's position.
+We also only consider batted balls hit into fair territory and within 35 degrees of the fielder's position.
 This limits our model to only plays that a player at that position would be eligible for. 
 Further, for each combination of year and position, we only consider players who had at least 10 plays at that position during that year. 
 
@@ -170,13 +162,14 @@ However, the standard error of these estimates are large such that most of the p
 ### Measuring the Quality of a Play
 
 Under this model, we calculate the estimated probability of a successful play for each batted ball in our dataset by using the fitted model for the relevant position and year.
-However, to evaluate the defensive contribution of each player, we need a baseline to compare these probabilities against. 
-We fit a separate model for each position and year, which uses the same covariates but does not include any player-specific effects. 
-Then, for each batted ball, we can calculate the play probability added (PPA) as the difference between the estimated probability of a successful play with the player-specific effects and the estimated probability without the player-specific effects:
+However, we are interested in calculating the probability that a player makes a successful play above the probability that an average player at that position would make a successful play on that batted ball.
+Then, for each batted ball, for a given player, we calculate the play probability added (PPA) as the difference between the estimated probability that that player makes a successful play and the estimated probability that an average player at that position would make a successful play:
 
 $$
 PPA_{ij} = \hat{p}_{ij}^{(player)} - \hat{p}_{j}^{(avg)}
 $$
+
+where $\hat{p}_{ij}^{(player)}$ is the estimated probability that player $i$ makes a successful play on batted ball $j$, and $\hat{p}_{j}^{(avg)}$ is the estimated probability from the same model, but assumes that player-specific coefficients are 0.
 
 This is preferred to simply using the residual values from the player-specific model because it is desirable to compare the probability that a given player makes a successful play to the average probability that any player at that position would make a successful play on that batted ball.
 
@@ -220,6 +213,8 @@ This allows us to capture the nuances of each player's defensive positioning, wh
 
 For this model extension, we follow the same model structure as before, but also incorporate the player-specific positioning data into the calculation of the distance, angle, and direction covariates.
 We propose that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball. 
+
+{{< embed probability_modeling.qmd#fig-statcast-positioning >}}
 
 
 ## Results
