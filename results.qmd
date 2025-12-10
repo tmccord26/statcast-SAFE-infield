@@ -1,0 +1,39 @@
+---
+title: "SAFE Modeling Results"
+format: html
+---
+
+```{r}
+library(tidyverse)
+
+player_id_map <- read_rds("statcast_data/player_positioning/sc_positioning.rds") |>
+  mutate(fielder_id = as.character(fielder_id)) |>
+  select(fielder_id, name_fielder) |>
+  distinct()
+
+safe_results <- read_rds("results/safe_results.rds") |>
+  left_join(player_id_map, by = "fielder_id") |>
+  rename(fielder_name = name_fielder) |>
+  select(fielder_id, fielder_name, position, year, SAFE)
+
+player_OAA <- data.frame(
+  fielder_name = c("Arenado, Nolan", "Swanson, Dansby", "Giménez, Andrés", 
+                   "Henderson, Gunnar", "McMahon, Ryan", "Tovar, Ezequiel", 
+                   "Adames, Willy", "Santana, Carlos", "Hoerner, Nico", 
+                   "Hayes, Ke'Bryan"),
+  OAA_percentile = c(95, 100, 100, 49, 92, 99, 99, 78, 98, 98)
+)
+```
+
+## Show the Top 10 By Position
+
+```{r}
+safe_results |>
+  left_join(player_OAA, by = "fielder_name") |>
+  arrange(desc(SAFE)) |>
+  head(10) |>
+  select(fielder_name, year, position, SAFE, OAA_percentile) |>
+  kableExtra::kable(col.names = c("Player", "Year", "Position", "SAFE", "OAA %")) |>
+  kableExtra::kable_styling()
+```
+

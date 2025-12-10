@@ -400,6 +400,7 @@ for (year in years) {
   
 }
 
+saveRDS(all_safe_results, "results/safe_results.rds")
 ```
 
 ## Player-Specific Locations
@@ -681,8 +682,24 @@ for (year in years) {
   }
   
 }
+
+saveRDS(all_safe_sc_results, "statcast_data/player_positioning/sc_positioning_safe_results.rds")
 ```
 
 
 
 ## Results
+
+```{r}
+player_id_map <- sc_positioning |>
+  mutate(fielder_id = as.character(fielder_id)) |>
+  select(fielder_id, name_fielder) |>
+  distinct()
+
+all_safe_results |>
+  left_join(player_id_map, by = "fielder_id") |>
+  arrange(desc(SAFE)) |>
+  head(10) |>
+  select(name_fielder, position, year, SAFE)
+```
+

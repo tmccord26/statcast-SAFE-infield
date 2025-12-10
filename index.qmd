@@ -6,7 +6,7 @@ author:
     email: tmccord26@amherst.edu
     affiliations:
       - Amherst College
-keywords: Bayesian modeling, Sports analytics, Baseball defense
+keywords: Sports analytics, Baseball defense, Probit regression, Hierarchical models
 abstract: |
   High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by @jensen_2009, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics. [Placeholder for results]
 date: last-modified
