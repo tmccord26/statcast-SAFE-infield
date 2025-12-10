@@ -59,6 +59,12 @@ new_data$predicted_run_value <- predict(mod_rv, newdata = new_data)
 new_data |>
   filter(launch_speed == 100) |>
   ggplot(aes(x = spray_angle, y = predicted_run_value)) +
-  geom_line()
+  geom_line(size = 2) +
+  theme_minimal() +
+  labs(
+    x = "Spray Angle (degrees)",
+    y = "Predicted Run Value",
+    title = "Predicted Run Value of Ground Balls at 100 mph Launch Speed"
+  )
 ```
 

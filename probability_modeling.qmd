@@ -438,33 +438,35 @@ sc_positioning |>
 
 
 ```{r}
-fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, position, batted_balls, max_retries = 3) {
+# Merge position coordinates onto play data, filter to year, and compute features
+
+fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_space) {
   
-  # Merge position coordinates onto play data, filter to year, and compute features
+  sc_pos_position <- sc_positioning |>
+    filter(year == !!year, position == !!pos_position)
+  
   play_data <- bip_data |>
     filter(
-      (successful_play == 1 & play_made_by == position) | (successful_play == 0)
+      (successful_play == 1 & play_made_by == pos_position) | (successful_play == 0)
     ) |>
     mutate(
       fielder_id = case_when(
-        position == "1B" ~ fielder_3,
-        position == "2B" ~ fielder_4,
-        position == "3B" ~ fielder_5,
-        position == "SS" ~ fielder_6,
+        pos_position == "1B" ~ fielder_3,
+        pos_position == "2B" ~ fielder_4,
+        pos_position == "3B" ~ fielder_5,
+        pos_position == "SS" ~ fielder_6,
         TRUE ~ NA
       )
     ) |>
-    left_join(sc_positioning, 
+    left_join(sc_pos_position, 
               by = c("fielder_id", "stand" = "batter_hand"),
               relationship = "many-to-many") |>
-    # scaling continuous variables
     mutate(
       theta = abs(pos_angle - spray_angle),
       move_left = ifelse(spray_angle < pos_angle, 1, 0),
       launch_speed_scaled = scale(launch_speed)[,1],
       theta_scaled = scale(theta)[,1]
     ) |>
-    # filter out NA for all variables used in the model
     filter(
       !is.na(fielder_id),
       !is.na(launch_speed),
@@ -477,14 +479,14 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, position, batted_bal
     arrange(num_plays) |>
     filter(num_plays >= 10) |>
     pluck("fielder_id")
-
+  
   play_data <- play_data |>
     filter(fielder_id %in% players_num_plays) |>
     mutate(fielder_id = factor(fielder_id))
   
   # Finding average positioning for all positions
-  avg_positioning <- sc_positioning |>
-    filter(position == !!position, year == !!year) |>
+  avg_positioning <- sc_pos_position |>
+    filter(position == !!pos_position, year == !!year) |>
     group_by(batter_hand) |>
     summarise(
       avg_pos_angle = mean(pos_angle, na.rm = TRUE),
@@ -496,7 +498,7 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, position, batted_bal
   # ---------------------------- PROBABILITY MODEL -----------------------------
   
   # Create the outcome variable name dynamically
-  outcome_var <- paste0("out_", str_to_lower(position))
+  outcome_var <- paste0("out_", str_to_lower(pos_position))
   
   formula_str_player <- paste0(
     outcome_var, " ~ 1 + theta_scaled + theta_scaled:move_left + ",
@@ -507,7 +509,7 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, position, batted_bal
   mod_player <- NULL
   attempt <- 1
   
-  while(is.null(mod_player) && attempt <= max_retries) {
+  while(is.null(mod_player) && attempt <= 2) {
     
     tryCatch({
       
@@ -567,96 +569,90 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, position, batted_bal
   
   # ---------------------- CALCULATING SAFE METRICS ----------------------------
   
-  batted_balls <- batted_balls |>
+  # Create bb_avg with predictions - keep identifying columns for joining
+  bb_avg <- bb_space |>
+    mutate(row_id = row_number()) |>  # Add row identifier
+    left_join(avg_positioning, by = "batter_hand") |>
     mutate(
-      # standardize variables based on training data
-      launch_speed_scaled = (launch_speed - mean(play_data$launch_speed, na.rm = TRUE)) / 
-                             sd(play_data$launch_speed, na.rm = TRUE)
+      theta = abs(avg_pos_angle - spray_angle),
+      theta_scaled = (theta - mean(play_data$theta, na.rm = TRUE)) / 
+                     sd(play_data$theta, na.rm = TRUE),
+      move_left = ifelse(spray_angle < avg_pos_angle, 1, 0)
     )
   
-  fielders <- unique(play_data$fielder_id)
+  bb_avg$prob_play_avg <- predict(mod_player, newdata = bb_avg, type = "response", re.form = NA)
   
-  # Set up a data frame to store SAFE results
+  # Keep only necessary columns for joining
+  bb_avg_join <- bb_avg |>
+    dplyr::select(row_id, prob_play_avg)
+  
+  players <- unique(play_data$fielder_id)
+  
   safe_results <- data.frame()
   
-  for (fielder in fielders) {
+  for (player in players) {
     
-    # Get player positioning
-    player_pos <- sc_positioning |>
-      filter(fielder_id == fielder) |>
-      select(batter_hand, pos_x, pos_y, pos_angle)
+    pos_player <- sc_pos_position |>
+      filter(fielder_id == player) |>
+      dplyr::select(batter_hand, pos_x, pos_y, pos_angle)
     
-    # Create data with player's actual positioning
-    bb_player <- batted_balls |>
-      mutate(fielder_id = factor(fielder, levels = levels(play_data$fielder_id))) |>
-      left_join(player_pos, by = c("batter_hand"), relationship = "many-to-many") |>
+    bb_player <- bb_space |>
+      mutate(row_id = row_number()) |>  # Add same row identifier
+      left_join(
+        pos_player,
+        by = c("batter_hand"),
+        relationship = "many-to-many"
+      ) |>
       mutate(
         theta = abs(pos_angle - spray_angle),
         theta_scaled = (theta - mean(play_data$theta, na.rm = TRUE)) / 
                        sd(play_data$theta, na.rm = TRUE),
-        move_left = ifelse(spray_angle < pos_angle, 1, 0)
+        move_left = ifelse(spray_angle < pos_angle, 1, 0),
+        fielder_id = factor(player, levels = levels(play_data$fielder_id))
       )
     
-    # Create data with average positioning
-    bb_avg <- batted_balls |>
-      mutate(fielder_id = factor(fielder, levels = levels(play_data$fielder_id))) |>
-      left_join(avg_positioning, by = "batter_hand", relationship = "many-to-many") |>
-      rename(pos_angle = avg_pos_angle, pos_x = avg_pos_x, pos_y = avg_pos_y) |>
-      mutate(
-        theta = abs(pos_angle - spray_angle),
-        theta_scaled = (theta - mean(play_data$theta, na.rm = TRUE)) / 
-                       sd(play_data$theta, na.rm = TRUE),
-        move_left = ifelse(spray_angle < pos_angle, 1, 0)
-      )
+    bb_player$prob_play_player <- predict(mod_player, newdata = bb_player, type = "response")
     
-    n_opportunities <- nrow(play_data |> filter(fielder_id == fielder))
+    n_opportunities <- nrow(play_data |> filter(fielder_id == player))
     
-    # Check that this fielder exists in the model
-    if (!(fielder %in% levels(play_data$fielder_id))) {
-      next
-    }
-    
-    # Calculate probabilities
-    prob_play_player <- predict(mod_player, newdata = bb_player, type = "response")
-    prob_play_avg <- predict(mod_player, newdata = bb_avg, type = "response", re.form = NA)
-    
-    player_res <- data.frame(
-      prob_play_player = prob_play_player,
-      prob_play_avg = prob_play_avg,
-      run_value = batted_balls$run_value,
-      density = batted_balls$density
-    ) |>
+    # Join by row_id to match correct probabilities
+    bb_temp <- bb_player |>
+      left_join(bb_avg_join, by = "row_id") |>
       mutate(
         prob_play_added = prob_play_player - prob_play_avg,
         SAFE = prob_play_added * run_value * density
-      ) |>
-      summarize(SAFE = sum(SAFE, na.rm = TRUE) * n_opportunities)
+      )
     
-    # append fielderid, position, SAFE, and num_plays to safe_results
+    player_res <- bb_temp |>
+      summarize(
+        SAFE = sum(SAFE, na.rm = TRUE) * n_opportunities
+      )
+    
     safe_results <- rbind(safe_results, data.frame(
-      fielder_id = as.character(fielder),
-      position = position,
+      fielder_id = as.character(player),
+      position = pos_position,
       year = year,
       SAFE = player_res$SAFE
     ))
-
   }
   
   return(safe_results)
-  
 }
 ```
+
 
 ```{r}
 # Initialize results storage
 all_safe_sc_results <- data.frame()
 
 # duplicate batted_balls with lhh and rhh
-batted_balls <- batted_balls |>
-  slice(rep(1:n(), each = 2)) |>
-  mutate(
-    batter_hand = rep(c("L", "R"), times = nrow(batted_balls))
-  )
+bb_space <- batted_balls |>
+    slice(rep(1:n(), each = 2)) |>
+    mutate(
+      batter_hand = rep(c("L", "R"), times = nrow(batted_balls)),
+      launch_speed_scaled = (launch_speed - mean(play_data$launch_speed, na.rm = TRUE)) / 
+                             sd(play_data$launch_speed, na.rm = TRUE)
+    )
 
 for (year in years) {
   
@@ -665,16 +661,12 @@ for (year in years) {
   
   for (position in positions) {
     
-    sc_pos_year <- sc_positioning |>
-      filter(position == !!position, year == !!year) |>
-      select(fielder_id, batter_hand, pos_x, pos_y, pos_angle)
-    
     safe_results <- fit_SAFE_sc_pos(
       bip_data = bip_gb_year,
       year = year,
-      position = position,
-      sc_positioning = sc_pos_year,
-      batted_balls = batted_balls
+      pos_position = position,
+      sc_positioning = sc_positioning,
+      bb_space = bb_space
     )
     
     # Accumulate results
