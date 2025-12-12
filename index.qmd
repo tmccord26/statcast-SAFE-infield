@@ -116,9 +116,9 @@ where $PPA_{i,p,y}$ is the play probability added for player $i$ at position $p$
 Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
 This follows from the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
 It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
-We also only consider batted balls hit into fair territory and within 35 degrees of the fielder's position.
+We also only consider batted balls hit into fair territory.
 This limits our model to only plays that a player at that position would be eligible for. 
-Further, for each combination of year and position, we only consider players who had at least 10 plays at that position during that year. 
+Further, for each combination of year and position, we only consider players who had at least 10 plays at that position during that year, to aid in model convergence.
 
 This general probability model estimates the probability that a given play will be successful based on various covariates that describe the nature of the batted ball and the fielder's position.
 In order to capture the defensive abilities of each fielder, we use a hierarchical structure, in which we fit random effects for each individual fielder at that position.
@@ -170,6 +170,7 @@ PPA_{ij} = \hat{p}_{ij}^{(player)} - \hat{p}_{j}^{(avg)}
 $$
 
 where $\hat{p}_{ij}^{(player)}$ is the estimated probability that player $i$ makes a successful play on batted ball $j$, and $\hat{p}_{j}^{(avg)}$ is the estimated probability from the same model, but assumes that player-specific coefficients are 0.
+We can interpret this value as the additional probability that player $i$ makes a successful play on batted ball $j$ above the average probability that any player at that position would make a successful play on that batted ball.
 
 This is preferred to simply using the residual values from the player-specific model because it is desirable to compare the probability that a given player makes a successful play to the average probability that any player at that position would make a successful play on that batted ball.
 
@@ -178,18 +179,26 @@ This is preferred to simply using the residual values from the player-specific m
 Consider two different hard-hit ground balls that a third basemen receives, one to his left, and one to his right, each with equally difficult success probabilities.
 A ground ball hit to his side closest to the shortstop is most likely to result in a single.
 However, the ground ball hit closer to the left field foul line is more likely to result in a double.
-Although we would consider these plays equally difficult, the run consequences of each play are quite different.
-Then, it's important to weight each possible play by its run consequence to get a more accurate estimate of the overall defensive contribution of each player.
+Although we would consider these plays equally difficult, the run consequences of each play, if they are not successful, are quite different.
+Then, we need to account for the number of runs that a fielder is saving the team if he makes a successful play on a given batted ball, or the number of runs he is costing the team if he does not make a successful play.
 
 Each play is associated with a change in expected runs for the defensive team, which we denote as $\Delta_{RE}$.
-This value is calculated as the difference in run expectancy before and after the play, where positive values represent runs saved by the defense and negative values represent runs cost by the defense as a result of the play.
-We fit a generalized additive model (GAM) to estimate $\Delta_{RE}$ of a ground ball $j$ based on its launch speed $V_j$ and spray angle $\theta_j$:
+This value is calculated as the difference in run expectancy before and after the play.
+We only consider the change in run expectancy for unsuccessful plays, as we are interested in quantifying the consequences of not making a successful play on a batted ball.
+We fit a generalized additive model (GAM) to estimate the run consequence $\Delta_{RE}$ of an unsuccessful ground ball $j$ based on its launch speed $V_j$ and spray angle $\theta_j$:
 
 $$
 \Delta_{RE, j} = f(V_j) + f(\theta_j) + V_j\theta_j + \epsilon
 $$
 
 where $f$ represents a smooth function estimated by the GAM.
+
+### Calculating the Density of Batted Balls
+
+Finally, we need to estimate the density of batted balls $f(\theta, V)$ hit with spray angle $\theta$ and velocity $V$.
+This density is estimated using a two-dimensional kernel density estimate (KDE) based on the observed distribution of batted balls in our dataset.
+We do this using the `kde2d` function from the `ks` package in R.
+This gives us an estimate of the density of batted balls hit with different combinations of spray angle and velocity, which accounts for the frequency of different types of batted balls.
 
 
 ### Estimating Player SAFE Values
@@ -219,6 +228,23 @@ We propose that a more accurate estimate of individual fielding starting positio
 
 ## Results
 
+
+For each combination of position and year, we calculate the SAFE values for each player using both the original SAFE model and the updated SAFE model with player-specific positioning data.
+It's important to note that some year/position combinations did not converge and thus SAFE values could not be calculated for players in those groups.
+We evaluate our model in two ways.
+First, we check that our model produces reasonable results by maintaining the desired result that players at more valuable positions like shortstop and second base tend to have higher SAFE values than players at less valuable positions like first base.
+We also check that our model produces the desirable result that players with fewer opportunities tend to have SAFE values closer to zero, as they have less data to inform their estimates and should be considered close to average. 
+Second, we check that our model correlates well with two established metrics, Defensive Runs Saved (DRS) and Outs Above Average (OAA), both provided by Baseball Savant.
+
+A desirable property of our SAFE metric is that it should produce results that are relatively consistent with state-of-the-art defensive metrics.
+
+
+### Internal Evaluation
+
+
+### External Evaluation
+
+{{< embed results.qmd#fig-safe-distribution >}}
 
 
 

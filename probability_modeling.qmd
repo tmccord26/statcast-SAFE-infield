@@ -180,16 +180,33 @@ ggplot(batted_balls, aes(x = spray_angle, y = launch_speed, fill = density)) +
 ```
 
 
-### Fitting a Run Value Model
+### Fitting a Run Consequence Model
 
 ```{r}
-# Fitting a run expectancy model
-mod_run_value <- gam(delta_run_exp ~ s(launch_speed) +
-                                     s(spray_angle) + 
-                                     launch_speed:spray_angle,
-                     data = bip_gb)
+# Fitting a run consequence model; the expected number of runs on non-successful plays
 
-batted_balls$run_value <- predict(mod_run_value, newdata = batted_balls)
+mod_run_consequence <- gam(delta_run_exp ~ s(launch_speed) +
+                                        s(spray_angle) + 
+                                        launch_speed:spray_angle,
+                    data = bip_gb |> filter(successful_play == 0))
+
+batted_balls$run_consequence <- predict(mod_run_consequence, newdata = batted_balls)
+
+ggplot(batted_balls, aes(x = spray_angle, y = launch_speed, fill = run_consequence)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(
+    title = "Predicted Run Consequence of Unsuccessful Ground Balls by Spray Angle and Launch Speed",
+    x = "Spray Angle (degrees)",
+    y = "Launch Speed (mph)",
+    fill = "Run Consequence"
+  ) +
+  theme_minimal()
+
+batted_balls |>
+  filter(launch_speed == 80) |>
+  ggplot(aes(x = spray_angle, y = run_consequence)) +
+  geom_line()
 ```
 
 
@@ -345,7 +362,7 @@ fit_SAFE <- function(bip_data, year, position, positioning_data, batted_balls, m
         prob_play_player = predict(mod_player, newdata = bb_temp, type = "response"),
         prob_play_avg = predict(mod_player, newdata = bb_temp, type = "response", re.form = NA),
         prob_play_added = prob_play_player - prob_play_avg,
-        SAFE = prob_play_added * run_value * density
+        SAFE = prob_play_added * run_consequence * density
       ) 
     
     player_res <- bb_temp |>
@@ -436,16 +453,18 @@ sc_positioning |>
   )
 ```
 
-
 ```{r}
-# Merge position coordinates onto play data, filter to year, and compute features
+# troubleshooting Statcast positioning SAFE model
 
-fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_space) {
+fit_SAFE_sc_pos <- function(bip_gb, year, pos_position, sc_positioning, bb_space) {
   
   sc_pos_position <- sc_positioning |>
-    filter(year == !!year, position == !!pos_position)
-  
-  play_data <- bip_data |>
+    filter(year == year, position == pos_position) |>
+    group_by(fielder_id, batter_hand) |>
+    summarize(across(where(is.numeric), mean), .groups = "drop") |>
+    select(fielder_id, batter_hand, pos_angle)
+    
+  play_data <- bip_gb |>
     filter(
       (successful_play == 1 & play_made_by == pos_position) | (successful_play == 0)
     ) |>
@@ -459,8 +478,8 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_spa
       )
     ) |>
     left_join(sc_pos_position, 
-              by = c("fielder_id", "stand" = "batter_hand"),
-              relationship = "many-to-many") |>
+              by = c("fielder_id", "stand" = "batter_hand"), relationship = "many-to-many"
+              ) |>
     mutate(
       theta = abs(pos_angle - spray_angle),
       move_left = ifelse(spray_angle < pos_angle, 1, 0),
@@ -486,12 +505,9 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_spa
   
   # Finding average positioning for all positions
   avg_positioning <- sc_pos_position |>
-    filter(position == !!pos_position, year == !!year) |>
     group_by(batter_hand) |>
     summarise(
       avg_pos_angle = mean(pos_angle, na.rm = TRUE),
-      avg_pos_x = mean(pos_x, na.rm = TRUE),
-      avg_pos_y = mean(pos_y, na.rm = TRUE),
       .groups = "drop"
     )
   
@@ -571,7 +587,6 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_spa
   
   # Create bb_avg with predictions - keep identifying columns for joining
   bb_avg <- bb_space |>
-    mutate(row_id = row_number()) |>  # Add row identifier
     left_join(avg_positioning, by = "batter_hand") |>
     mutate(
       theta = abs(avg_pos_angle - spray_angle),
@@ -582,25 +597,32 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_spa
   
   bb_avg$prob_play_avg <- predict(mod_player, newdata = bb_avg, type = "response", re.form = NA)
   
-  # Keep only necessary columns for joining
-  bb_avg_join <- bb_avg |>
-    dplyr::select(row_id, prob_play_avg)
-  
   players <- unique(play_data$fielder_id)
   
   safe_results <- data.frame()
-  
+    
   for (player in players) {
     
     pos_player <- sc_pos_position |>
       filter(fielder_id == player) |>
-      dplyr::select(batter_hand, pos_x, pos_y, pos_angle)
+      dplyr::select(batter_hand, pos_angle)
+    
+    # if pos_player doesn't have both L and R, fill in the average
+    
+    if (nrow(pos_player) < 2) {
+      missing_hands <- setdiff(c("L", "R"), pos_player$batter_hand)
+      for (hand in missing_hands) {
+        avg_angle <- avg_positioning |>
+          filter(batter_hand == hand) |>
+          pluck("avg_pos_angle")
+        pos_player <- rbind(pos_player, data.frame(batter_hand = hand, pos_angle = avg_angle))
+      }
+    }
     
     bb_player <- bb_space |>
-      mutate(row_id = row_number()) |>  # Add same row identifier
       left_join(
         pos_player,
-        by = c("batter_hand"),
+        by = "batter_hand",
         relationship = "many-to-many"
       ) |>
       mutate(
@@ -612,15 +634,18 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_spa
       )
     
     bb_player$prob_play_player <- predict(mod_player, newdata = bb_player, type = "response")
-    
+    bb_player$prob_play_avg <- bb_avg$prob_play_avg
     n_opportunities <- nrow(play_data |> filter(fielder_id == player))
+    
+    if (player == players[1]) {
+      print(paste("Year: ", year, "Position: ", pos_position, "Calculating SAFE for player", player, "with", n_opportunities, "opportunities"))
+    }
     
     # Join by row_id to match correct probabilities
     bb_temp <- bb_player |>
-      left_join(bb_avg_join, by = "row_id") |>
       mutate(
         prob_play_added = prob_play_player - prob_play_avg,
-        SAFE = prob_play_added * run_value * density
+        SAFE = prob_play_added * run_consequence * density
       )
     
     player_res <- bb_temp |>
@@ -632,12 +657,16 @@ fit_SAFE_sc_pos <- function(bip_data, year, sc_positioning, pos_position, bb_spa
       fielder_id = as.character(player),
       position = pos_position,
       year = year,
-      SAFE = player_res$SAFE
+      SAFE = player_res$SAFE,
+      n_opportunities = n_opportunities
     ))
+  
   }
   
   return(safe_results)
+  
 }
+
 ```
 
 
@@ -650,8 +679,8 @@ bb_space <- batted_balls |>
     slice(rep(1:n(), each = 2)) |>
     mutate(
       batter_hand = rep(c("L", "R"), times = nrow(batted_balls)),
-      launch_speed_scaled = (launch_speed - mean(play_data$launch_speed, na.rm = TRUE)) / 
-                             sd(play_data$launch_speed, na.rm = TRUE)
+      launch_speed_scaled = (launch_speed - mean(bip_gb$launch_speed, na.rm = TRUE)) / 
+                             sd(bip_gb$launch_speed, na.rm = TRUE)
     )
 
 for (year in years) {
@@ -662,7 +691,7 @@ for (year in years) {
   for (position in positions) {
     
     safe_results <- fit_SAFE_sc_pos(
-      bip_data = bip_gb_year,
+      bip_gb = bip_gb_year,
       year = year,
       pos_position = position,
       sc_positioning = sc_positioning,
@@ -675,23 +704,28 @@ for (year in years) {
   
 }
 
-saveRDS(all_safe_sc_results, "statcast_data/player_positioning/sc_positioning_safe_results.rds")
+saveRDS(all_safe_sc_results, "results/sc_safe_results.rds")
 ```
-
 
 
 ## Results
 
 ```{r}
+ggplot(all_safe_sc_results, aes(x = SAFE, color = position)) +
+  geom_density()
+```
+
+
+```{r}
 player_id_map <- sc_positioning |>
   mutate(fielder_id = as.character(fielder_id)) |>
-  select(fielder_id, name_fielder) |>
+  dplyr::select(fielder_id, name_fielder) |>
   distinct()
 
-all_safe_results |>
+all_safe_sc_results |>
   left_join(player_id_map, by = "fielder_id") |>
+  filter(position == "SS") |>
   arrange(desc(SAFE)) |>
-  head(10) |>
-  select(name_fielder, position, year, SAFE)
+  head(10)
 ```
 
