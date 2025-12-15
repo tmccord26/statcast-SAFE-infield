@@ -94,8 +94,8 @@ fielder_effects <- data.frame(
 ```{r}
 #| label: fig-random-intercepts
 #| fig-cap: "Random Intercepts for SS Fielders in 2025 with 95% Confidence Intervals"
-#| fig-width: 8
-#| fig-height: 6
+#| fig-width: 3
+#| fig-height: 3
 
 ggplot(fielder_effects, aes(x = reorder(fielder_id, random_intercept), y = random_intercept)) +
   geom_point() +

@@ -5,7 +5,11 @@ format: html
 
 ```{r}
 library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+```
 
+```{r}
 player_id_map <- read_rds("statcast_data/player_positioning/sc_positioning.rds") |>
   mutate(fielder_id = as.character(fielder_id)) |>
   dplyr::select(fielder_id, name_fielder) |>
@@ -14,7 +18,7 @@ player_id_map <- read_rds("statcast_data/player_positioning/sc_positioning.rds")
 safe_results <- read_rds("results/safe_results.rds") |>
   left_join(player_id_map, by = "fielder_id") |>
   rename(fielder_name = name_fielder) |>
-  dplyr::select(fielder_id, fielder_name, position, year, SAFE)
+  dplyr::select(fielder_id, fielder_name, position, year, n_opportunities, SAFE)
 
 safe_sc_results <- read_rds("results/sc_safe_results.rds") |>
   left_join(player_id_map, by = "fielder_id") |>
@@ -30,16 +34,88 @@ player_OAA <- data.frame(
 )
 ```
 
-## Show the Top 10 By Position
+## Distribution of SAFE Values
 
 ```{r}
-safe_results |>
-  left_join(player_OAA, by = "fielder_name") |>
-  arrange(desc(SAFE)) |>
-  head(10) |>
-  select(fielder_name, year, position, SAFE, OAA_percentile) |>
-  kableExtra::kable(col.names = c("Player", "Year", "Position", "SAFE", "OAA %")) |>
-  kableExtra::kable_styling()
+#| label: fig-safe-distributions
+#| fig-cap: "Distribution of SAFE Values by Position"
+#| fig-width: 8
+#| fig-height: 3
+
+p_safe_dist <- safe_results |>
+  ggplot(aes(x = SAFE, color = position)) +
+  geom_density() +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  labs(
+    title = "Distribution of SAFE Values by Position",
+    x = "SAFE",
+    y = "Density",
+    color = "Position"
+  ) +
+  theme_classic()
+
+p_safe_n_opp <- safe_results |>
+  ggplot(aes(x = n_opportunities, y = SAFE, color = position)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  labs(
+    x = "Number of Opportunities",
+    y = "SAFE",
+    color = "Position"
+  ) +
+  theme_classic()
+
+grid.arrange(p_safe_dist, p_safe_n_opp, ncol = 2)
+```
+
+## Top 5 By Position for Select Combinations
+
+```{r}
+top_safe <- function(safe_results, position, year, n = 5) {
+  safe_results |>
+    filter(position == !!position, year == !!year) |>
+    arrange(desc(SAFE)) |>
+    slice_head(n = n) |>
+    select(fielder_name, SAFE) |>
+    mutate(SAFE = round(SAFE, 2))
+}
+```
+
+
+```{r}
+#| label: tbl-top-ss-2025
+#| tbl-cap: "Top 5 Shortstops by SAFE in 2025"
+
+top_safe(safe_results, "SS", 2025) |>
+  kable(col.names = c("Fielder", "SAFE")) |>
+  kable_styling(full_width = F)
+```
+
+```{r}
+#| label: fig-top-2b-2025
+#| fig-cap: "Top 5 Second Basemen by SAFE in 2025"
+
+top_safe(safe_results, "2B", 2025) |>
+  kable(col.names = c("Fielder", "SAFE")) |>
+  kable_styling(full_width = F)
+```
+
+```{r}
+#| label: fig-top-3b-2025
+#| fig-cap: "Top 5 Third Basemen by SAFE in 2025"
+
+top_safe(safe_results, "3B", 2025) |>
+  kable(col.names = c("Fielder", "SAFE")) |>
+  kable_styling(full_width = F)
+```
+
+```{r}
+#| label: fig-top-1b-2024
+#| fig-cap: "Top 5 First Basemen by SAFE in 2024"
+
+top_safe(safe_results, "1B", 2024) |>
+  kable(col.names = c("Fielder", "SAFE")) |>
+  kable_styling(full_width = F)
 ```
 
 
