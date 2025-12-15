@@ -1227,26 +1227,17 @@ safe_sc_results <- safe_sc_results |>
 # EXTRACT THE PROBABILITY CURVES FOR ANDRES GIMENEZ 2023
 
 bip_2025 <- bip_gb |>
-  filter(game_year == 2023)
+  filter(game_year == 2025)
 
-positioning_2b_2023 <- safe_positioning |>
-  filter(play_made_by == "2B")
-
-# Add pos_angle to bb_space for this position
-bb_space_2b <- bb_space |>
-  mutate(
-    pos_angle = positioning_2b_2023$pos_angle
-  )
-
-gimenez_2023_safe <- fit_SAFE_position_year(
+olsen_2025_safe <- fit_SAFE_sc_position_year(
   bip_data = bip_2025,
-  bb_space = bb_space_2b,
-  positioning_data = positioning_2b_2023,
-  year = 2023,
-  position = "2B",
+  bb_space = bb_space_sc,
+  sc_positioning = sc_positioning,
+  year = 2025,
+  position = "1B",
   keep_probs = TRUE
 )
 
-gimenez_probs <- gimenez_2023_safe$player_probs[["665926"]]
+olsen_probs <- olsen_2025_safe$player_probs[["621566"]]
 ```
 
