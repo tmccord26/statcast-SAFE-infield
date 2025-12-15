@@ -566,6 +566,9 @@ for (year in years) {
 }
 
 safe_results <- bind_rows(all_safe_results)
+
+# Save SAFE results
+saveRDS(safe_results, "results/safe_results.rds")
 ```
 
 ```{r}
@@ -784,7 +787,7 @@ predict_SAFE_sc_avg <- function(model, bb_space, avg_positioning, scaler) {
 
 ```{r}
 compute_SAFE_sc_player <- function(fielder_id, model, play_data, sc_positioning, 
-                                   bb_space, bb_space_avg, scaler) {
+                                   bb_space, scaler) {
   
   # Get number of opportunities for this fielder
   n_opportunities <- sum(play_data$fielder_id == fielder_id)
@@ -824,7 +827,7 @@ compute_SAFE_sc_player <- function(fielder_id, model, play_data, sc_positioning,
   play_data$fielder_id <- factor(play_data$fielder_id)
   bb_temp$fielder_id <- factor(fielder_id, levels = levels(play_data$fielder_id))
   bb_temp$p_player <- predict(model, newdata = bb_temp, type = "response")
-  bb_temp$p_avg <- bb_space_avg$p_avg
+  bb_temp$p_avg <- predict(model, newdata = bb_temp, type = "response", re.form = NA)
   
   # Get predictions
   bb_temp <- bb_temp |>
@@ -855,14 +858,6 @@ compute_SAFE_sc_all_players <- function(
 ) {
 
   fielders <- unique(play_data$fielder_id)
-  
-  avg_positioning <- compute_avg_sc_positioning(sc_pos_position)
-  bb_avg <- predict_SAFE_sc_avg(
-    model,
-    bb_space,
-    avg_positioning,
-    scaler
-  )
 
   # Initialize storage
   player_results <- list()
@@ -878,7 +873,6 @@ compute_SAFE_sc_all_players <- function(
       play_data = play_data,
       sc_positioning = sc_pos_position,
       bb_space = bb_space,
-      bb_space_avg = bb_avg,
       scaler = scaler
     )
     
@@ -895,7 +889,8 @@ compute_SAFE_sc_all_players <- function(
     
     # Store probability data if requested
     if (keep_probs) {
-      player_probs[[fid]] <- result$data
+      fid_chr = as.character(fid)
+      player_probs[[fid_chr]] <- result$data
     }
   }
   
@@ -920,16 +915,16 @@ fit_SAFE_sc_position_year <- function(
   sc_positioning,
   year,
   position,
-  min_plays = 350,
+  min_plays = 300,
   max_retries = 3,
-  keep_probs = FALSE
+  keep_probs
 ) {
 
   message("Preparing SAFE training data: ", position, " ", year)
   
   sc_pos_position <- prepare_sc_positioning(sc_positioning, year, position)
   play_data <- prepare_SAFE_sc_training_data(bip_data, sc_pos_position, year,
-                                             position, 300)
+                                             position, min_plays)
 
   if (nrow(play_data) == 0) return(NULL)
   
@@ -1195,7 +1190,7 @@ for (year in years) {
       sc_positioning,
       year,
       position,
-      min_plays = 350,
+      min_plays = 300,
       max_retries = 3,
       keep_probs = FALSE
     )
@@ -1224,7 +1219,7 @@ safe_sc_results <- safe_sc_results |>
 
 
 ```{r}
-# EXTRACT THE PROBABILITY CURVES FOR ANDRES GIMENEZ 2023
+# EXTRACT THE PROBABILITY CURVES FOR MATT OLSEN 2025
 
 bip_2025 <- bip_gb |>
   filter(game_year == 2025)
@@ -1239,5 +1234,24 @@ olsen_2025_safe <- fit_SAFE_sc_position_year(
 )
 
 olsen_probs <- olsen_2025_safe$player_probs[["621566"]]
+```
+
+
+```{r}
+#| label: fig-safe-components-olsen
+
+# probability curves
+olsen_probs |>
+  filter(launch_speed == 90, batter_hand == "L") |>
+  ggplot(aes(x = spray_angle)) +
+  geom_line(aes(y = p_player)) +
+  # dashed line for average
+  geom_line(aes(y = p_avg), linetype = "dashed")
+
+olsen_probs |>
+  filter(launch_speed == 90, batter_hand == "L") |>
+  ggplot(aes(x = spray_angle, y = SAFE_component)) +
+  geom_line() +
+  geom_vline(xintercept = 38, linetype = "dashed", color = "gray")
 ```
 

@@ -56,8 +56,7 @@ We fit hierarchical probit regression models similar to that of @jensen_2009 to 
 We then convert these probability estimates into run values by estimating the run consequence of a given ground ball based on its location and velocity.
 
 Further, we extend the original framework to include player-specific positioning data from Baseball Savant to improve our estimates of fielder starting locations.
-We compare the results of these models to assess the impact of using high-resolution tracking data and updated positioning information on defensive evaluation.
-We also evaluate the year-to-year reliability of our models to assess their effectiveness in capturing true defensive ability.
+We evaluate our models by verifying that they produce reasonable results and by comparing our results to established defensive metrics such as Defensive Runs Saved (DRS) and Outs Above Average (OAA).
 
 ## Data
 
