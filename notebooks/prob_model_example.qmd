@@ -1,0 +1,136 @@
+---
+title: "Example: Modeling Catch Probability for Shortstops in 2025"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(broom.mixed)
+library(mgcv)
+library(ks)
+
+bip_gb <- readRDS("statcast_data/bip_gb.rds")
+safe_positioning <- readRDS("statcast_data/player_positioning/safe_positioning.rds")
+```
+
+
+```{r}
+# Fitting a model for shortstops (SS) in 2025
+
+pos_ss <- safe_positioning |>
+  filter(play_made_by == "SS")
+
+bip_gb_ss_2025 <- bip_gb |>
+  filter(
+    game_year == 2025,
+    (successful_play == 1 & play_made_by == "SS") | (successful_play == 0)
+  ) |>
+  mutate(
+    pos_x = pos_ss$pos_x,
+    pos_y = pos_ss$pos_y,
+    pos_angle = pos_ss$pos_angle,
+    theta = abs(pos_angle - spray_angle),
+    move_left = ifelse(spray_angle < pos_angle, 1, 0),
+    fielder_id = as.factor(fielder_6)
+  ) |>
+  # filter out NA for all variables used in the model
+  filter(
+    !is.na(launch_speed),
+    !is.na(theta)
+  ) |>
+  # scaling continuous variables
+  mutate(
+    launch_speed_scaled = scale(launch_speed)[,1],
+    theta_scaled = scale(theta)[,1]
+  )
+
+players_num_plays <- bip_gb_ss_2025 |>
+  group_by(fielder_id) |>
+  summarise(num_plays = n()) |>
+  arrange(num_plays) |>
+  filter(num_plays >= 350) |>
+  pluck("fielder_id")
+
+bip_gb_ss_2025 <- bip_gb_ss_2025 |>
+  filter(fielder_id %in% players_num_plays)
+```
+
+
+### Probit Regression (with full random effects)
+
+```{r}
+
+# Probit regression model with full random effects
+model_ss_2025_re_full <- glmer(
+  out_ss ~ theta_scaled + theta_scaled:move_left + 
+    theta_scaled:launch_speed_scaled +
+    (1 + theta_scaled || fielder_id),
+  data = bip_gb_ss_2025,
+  family = binomial(link = "probit"),
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+```
+
+
+### Visualizing Random Intercepts
+
+```{r}
+
+# get random effects with standard errors for each fielder
+re_fielder <- ranef(model_ss_2025_re_full, condVar = TRUE)$fielder_id
+
+se_fielder <- sqrt(sapply(attr(re_fielder, "postVar"), function(x) x[1, 1, ]))
+
+fielder_effects <- data.frame(
+  fielder_id = rownames(re_fielder),
+  random_intercept = re_fielder[, 1],
+  random_theta = re_fielder[, 2],
+  se = se_fielder
+)
+
+```
+
+```{r}
+#| label: fig-random-intercepts
+#| fig-cap: "Random Intercepts for SS Fielders in 2025 with 95% Confidence Intervals"
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(fielder_effects, aes(x = reorder(fielder_id, random_intercept), y = random_intercept)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = random_intercept - 1.96 * `se..Intercept.`, ymax = random_intercept + 1.96 * `se..Intercept.`), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Random Intercepts for SS Fielders with 95% CI",
+    x = "Fielder ID",
+    y = "Random Intercept (u_i)"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank()
+  )
+```
+
+```{r}
+#| label: fig-random-slopes
+#| fig-cap: "Random Slopes for Theta SS Fielders in 2025 with 95% Confidence Intervals"
+#| fig-width: 8
+#| fig-height: 6
+
+ggplot(fielder_effects, aes(x = reorder(fielder_id, random_theta), y = random_theta)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = random_theta - 1.96 * `se.theta_scaled`, ymax = random_theta + 1.96 * `se.theta_scaled`), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Random Slopes for Theta SS Fielders with 95% CI",
+    x = "Fielder ID",
+    y = "Random Slope (u_theta)"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank()
+  )
+```

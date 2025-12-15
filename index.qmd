@@ -84,14 +84,14 @@ Using these data, we derive the following factors for each batted ball:
 
 The resulting dataset contains 21 variables from 144,169 ground balls hit into fair territory from the 2023-2025 seasons. 
 
-{{< embed exploratory.qmd#tbl-bip-summary >}}
+{{< embed notebooks/exploratory.qmd#tbl-bip-summary >}}
 
-{{< embed exploratory.qmd#tbl-continuous-summary >}}
+{{< embed notebooks/exploratory.qmd#tbl-continuous-summary >}}
 
 @tbl-bip-summary shows summary statistics for ground balls hit into fair territory from the 2023-2025 seasons.
 The proportion of ground balls resulting in outs and the number of outs recorded at each infield position are consistent across the three seasons.
 
-{{< embed exploratory.qmd#fig-fielder-positioning >}}
+{{< embed notebooks/exploratory.qmd#fig-fielder-positioning >}}
 
 We derive the starting location of the fielder at each position by calculating the average $(x, y)$ coordinates of all batted balls successfully fielded by that position, following the implementation by @jensen_2009.
 @fig-fielder-positioning shows the calculated average fielder positioning for each infield position based on batted balls successfully fielded from the 2023-2025 seasons.
@@ -152,7 +152,7 @@ We allow each player to have a different baseline for fielding a given ground ba
 This reflects our belief that different players may have different abilities to field balls hit at different angles.
 The original Bayesian implementation of this model used player-specific coefficients for all terms, but we simplify this hierarchical structure to reduce computational complexity and improve model convergence.
 
-{{< embed probability_modeling.qmd#fig-random-intercepts >}}
+{{< embed notebooks/probability_modeling.qmd#fig-random-intercepts >}}
 
 @fig-random-intercepts demonstrates individual player random intercepts for shortstops (SS) in the 2025 season. 
 Players differ in their baseline abilities. 
@@ -211,6 +211,22 @@ SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(
 $$
 
 This gives us an overall estimate of the number of runs saved or cost by player $i$ at position $p$ in year $y$ based on their defensive performance on ground balls.
+
+{{< embed notebooks/probability_modeling.qmd#fig-safe-components >}}
+
+@ fig-safe-components illustrates how the different components of SAFE come together to produce a final SAFE value using a hypothetical player. 
+We illustrate this point using Andres Gimenez, a second baseman for the Cleveland Guardians in the 2023 season.
+For simplicity, we illustrate this process using a ball hit at a fixed velocity of 90 mph. 
+The top left panel shows the estimated play probability added (PPA) for Gimenez on balls hit at different spray angles.
+There are two curves one for Andres Gimenez, and another representing an average second baseman.
+The difference in these curves for a given spray angle represents the PPA for Gimenez.
+The top right panel shows the estimated run consequence $\Delta_{RE}$ for unsuccessful plays at different spray angles.
+The bottom left panel shows the density of batted balls $f(\theta, V)$ hit at different spray angles.
+Finally, the bottom right panel shows the product of these three components and the number of opportunities, which represents the contribution to SAFE for Gimenez at each spray angle.
+This plot shows which types of plays are resulting in the most contributions to SAFE for Gimenez at a velocity of 90 mph.
+The area under this curve represents the total SAFE value for Gimenez at a velocity of 90 mph.
+In practice, we integrate over all plausible velocities to get the final SAFE value.
+
 
 ### Updated SAFE with Player-Specific Positioning
 

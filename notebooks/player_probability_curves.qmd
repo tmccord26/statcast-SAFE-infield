@@ -1,0 +1,123 @@
+---
+title: "player_probability_curves"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(broom.mixed)
+library(mgcv)
+library(ks)
+
+bip_gb <- readRDS("statcast_data/bip_gb.rds")
+safe_positioning <- readRDS("statcast_data/player_positioning/safe_positioning.rds")
+sc_positioning <- readRDS("statcast_data/player_positioning/sc_positioning.rds")
+```
+
+```{r}
+pos_1b <- safe_positioning |>
+  filter(play_made_by == "1B")
+
+bip_gb_1b_2023 <- bip_gb |>
+  filter(
+    game_year == 2023,
+    (successful_play == 1 & play_made_by == "1B") | (successful_play == 0)
+  ) |>
+  mutate(
+    pos_x = pos_ss$pos_x,
+    pos_y = pos_ss$pos_y,
+    pos_angle = pos_ss$pos_angle,
+    theta = abs(pos_angle - spray_angle),
+    move_left = ifelse(spray_angle < pos_angle, 1, 0),
+    fielder_id = as.factor(fielder_3)
+  ) |>
+  # filter out NA for all variables used in the model
+  filter(
+    !is.na(launch_speed),
+    !is.na(theta)
+  ) |>
+  # scaling continuous variables
+  mutate(
+    launch_speed_scaled = scale(launch_speed)[,1],
+    theta_scaled = scale(theta)[,1]
+  )
+
+players_num_plays <- bip_gb_1b_2023 |>
+  group_by(fielder_id) |>
+  summarise(num_plays = n()) |>
+  arrange(num_plays) |>
+  filter(num_plays >= 100) |>
+  pluck("fielder_id")
+
+bip_gb_1b_2023 <- bip_gb_1b_2023 |>
+  filter(fielder_id %in% players_num_plays)
+```
+
+
+```{r}
+model_1b_2023_re_full <- glmer(
+  out_1b ~ theta_scaled + theta_scaled:move_left + 
+    theta_scaled:launch_speed_scaled +
+    (1 + theta_scaled || fielder_id),
+  data = bip_gb_ss_2025,
+  family = binomial(link = "probit"),
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+```
+
+
+```{r}
+batted_balls <- read_rds("results/batted_balls.rds")
+
+safe_pos_1b <- safe_positioning |> filter(play_made_by == "1B")
+
+bb_1b_2023 <- batted_balls |>
+  mutate(
+    pos_angle = safe_pos_1b$pos_angle,
+    theta = abs(pos_angle - spray_angle),
+    move_left = ifelse(spray_angle < pos_angle, 1, 0),
+    theta_scaled = (theta - mean(bip_gb_1b_2023$theta)) / sd(bip_gb_1b_2023$theta),
+    launch_speed_scaled = (launch_speed - mean(bip_gb_1b_2023$launch_speed)) / sd(bip_gb_1b_2023$launch_speed)
+  )
+
+# apply probabilities
+bb_1b_2023$prob_play_avg = predict(
+  model_1b_2023_re_full,
+  newdata = bb_1b_2023,
+  re.form = NA,
+  type = "response"
+)
+
+ggplot(bb_1b_2023 |> filter(launch_speed == 90), aes(x = spray_angle, y = prob_play_avg)) +
+  geom_line() +
+  labs(
+    title = "Predicted Probability of Successful Play vs Spray Angle",
+    x = "Spray Angle (degrees)",
+    y = "Predicted Probability of Successful Play"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+bb_1b_2023$fielder_id = 624413
+
+bb_1b_2023$prob_play_ind = predict(
+  model_1b_2023_re_full,
+  newdata = bb_1b_2023,
+  type = "response"
+)
+
+# plot both curves together
+ggplot(bb_1b_2023 |> filter(launch_speed == 90), aes(x = spray_angle)) +
+  geom_line(aes(y = prob_play_avg, color = "Average Player")) +
+  geom_line(aes(y = prob_play_ind, color = "Pete Alonso")) +
+  labs(
+    title = "Predicted Probability of Successful Play vs Spray Angle",
+    x = "Spray Angle (degrees)",
+    y = "Predicted Probability of Successful Play",
+    color = "Player"
+  ) +
+  theme_minimal()
+```
+
