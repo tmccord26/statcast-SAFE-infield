@@ -41,11 +41,7 @@ The SAFE framework uses estimates of player location, ball location, and ball ve
 The model combines the probability of a made play with the run consequences of that play to estimate the overall defensive contribution of a player in terms of runs saved or allowed.
 The hierarchical Bayesian structure also allows for the sharing of information across players and positions, improving estimates for players with limited data.
 However, this model is limited by the accuracy and reliability of the underlying data used to estimate player and ball locations.
-These data, provided by Baseball Info Solutions, used hand-annotated video footage to estimate ball location and velocity.
-Even then, the starting location of the fielder at a given position was estimated by the authors by using the average location of balls caught by that position.
-
-Notably, the results of @jensen_2009 showed that the autocorrelation of defensive metrics from year-to-year was quite low for infielders.
-This shortcoming suggests that the original SAFE model performed poorly in evaluating infield defense, relative to outfield defense.
+These data, provided by Baseball Info Solutions, used hand-annotated video footage to estimate ball location, player location, and velocity.
 
 Since the publication of the SAFE framework, MLB has introduced Statcast, a high-resolution player tracking system that uses a combination of radar and camera technology to track the movement of players and the ball in real-time (need to find a citation).
 Statcast provides a wealth of data that was previously unavailable, including precise measurements of player and ball locations, velocities, and trajectories.
@@ -56,15 +52,15 @@ We estimate the number of runs saved or cost by infielders at each position (1B,
 We fit hierarchical probit regression models similar to that of @jensen_2009 to estimate the probability of a ground ball resulting in a successful play by the fielder at each infield position (1B, 2B, SS, 3B).
 We then convert these probability estimates into run values by estimating the run consequence of a given ground ball based on its location and velocity.
 
-Further, we extend the original framework to include player-specific positioning data from Baseball Savant to improve our estimates of fielder starting locations.
-We evaluate our models by verifying that they produce reasonable results and by comparing our results to established defensive metrics such as Defensive Runs Saved (DRS) and Outs Above Average (OAA).
+We extend the original framework to include player-specific positioning data from Baseball Savant to improve our estimates of fielder starting locations.
+We evaluate our models by verifying that they produce reasonable results and by comparing our results to established and publicly-available defensive metrics.
 
 ## Data
 
 Our evaluation of infield defense is based on Statcast data from 2023-2025.
 Although Statcast data has been publicly available since 2015, we focus on the most recent three years because the infield "shift" was banned following the 2022 season.
 We believe that narrowing the frame of our analysis to non-shifted seasons will yield more accurate estimates due to more consistent estimates for fielder locations.
-We obtain data on batted balls through the `baseballr` package in R, which provides a convenient interface for scraping Statcast data from MLB's public API.
+We obtain data on batted balls through the `baseballr` package in R, which provides an interface for scraping Statcast data from MLB's public API.
 The result is an .Rds file for each year of interest where each observation corresponds to a single batted ball in play (BIP) event.
 Further, as an extension of the original SAFE framework, we extract information on individual player positioning before each pitch by using the "Fielder Positioning" page on Baseball Savant (@savant_positioning).
 The location for each infielder on a given play is not publicly available.
@@ -79,8 +75,7 @@ Using these data, we derive the following factors for each batted ball:
 -   **play_made_by**: The position (1B, 2B, SS, 3B) of the fielder who made the play on the batted ball (Other, if play is not successful or play is made by another position).
 -   **location_x, location_y**: The $(x, y)$ coordinates of the batted ball when it reaches the fielder's location, measured in feet from home plate. The origin (0, 0) is at home plate, with the positive x-axis extending towards first base and the positive y-axis extending towards second base.
 -   **spray_angle**: Derived from the $(x, y)$ coordinates, this angle represents the direction of the batted ball relative to home plate, measured in degrees. The first base foul line is 45 degrees, second base is 0 degrees, and the third base foul line is -45 degrees.
--   **launch_velocity**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
--   **out\_{pos}**: A binary indicator for each infielder position (1B, 2B, SS, 3B) indicating whether or not the player at that position recorded a successful play on the batted ball.
+-   **launch_speed**: The velocity at which a ball is hit off the bat, measured in miles per hour (mph).
 
 The resulting dataset contains 21 variables from 144,169 ground balls hit into fair territory from the 2023-2025 seasons.
 
@@ -101,26 +96,21 @@ This intuitively makes sense, as the starting position of the fielder should not
 ## Methods
 
 The original SAFE framework follows a two-step process.
-The first step is to estimate the probability that a fielder makes a successful play on a ground ball using a hierarchical Bayesian probit regression model.
-The second step is to apply run expectancy values to estimate the run consequences of each play, which are then combined with the probability estimates to derive an overall defensive metric for each player.
+The first step is to estimate the probability that a fielder makes a successful play on a ground ball.
+The second step is to estimate and apply the run consequence of a given play, which is then combined with the probability estimates to derive an overall defensive metric for each player.
 In other words, each player is assigned a positive or negative run value based on the expected number of runs they save or cost their team for a given play with respect to the difficulty of the play.
 We estimate SAFE values for each infielder in each year:
 
 $$
-SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V)
+SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V) \times N_{opp}
 $$
 
 where $PPA_{i,p,y}$ is the play probability added for player $i$ at position $p$ in year $y$, $\Delta_{RE}$ is the change in run expectancy for a batted ball with spray angle $\theta$ and velocity $V$, and $f(\theta, V)$ is the density of batted balls hit with spray angle $\theta$ and velocity $V$.
 
 Within a given position, we only consider plays in which the fielder at that position either made a successful play on the batted ball or nobody made a successful play on the batted ball.
 This follows from the original SAFE framework, which only considers plays that the fielder at the given position had a chance to make.
-It would be unfair to also consider plays in which another fielder made the play, as this would penalize the fielder at the given position for plays they had no chance to make.
 We also only consider batted balls hit into fair territory.
-This limits our model to only plays that a player at that position would be eligible for.
-Further, for each combination of year and position, we only consider players who had at least 10 plays at that position during that year, to aid in model convergence.
-
-This general probability model estimates the probability that a given play will be successful based on various covariates that describe the nature of the batted ball and the fielder's position.
-In order to capture the defensive abilities of each fielder, we use a hierarchical structure, in which we fit random effects for each individual fielder at that position.
+Further, for each combination of year and position, we only consider players who had at least 300 plays at that position during that year, to aid in model convergence.
 
 This process requires us to fit a model for each combination of position (1B, 2B, SS, 3B) and year (2023, 2024, 2025), resulting in a total of 12 models.
 @jensen_2009 uses a Bayesian hierarchical probit regression model to estimate the probability of a successful play on a batted ball.
@@ -148,6 +138,9 @@ Our model specification includes random intercept effects for each fielder, as w
 We allow each player to have a different baseline for fielding a given ground ball and a different slope for the angle terms.
 This reflects our belief that different players may have different abilities to field balls hit at different angles.
 The original Bayesian implementation of this model used player-specific coefficients for all terms, but we simplify this hierarchical structure to reduce computational complexity and improve model convergence.
+
+We fit this model using the `lme4` package in R.
+We utilize the `glmer` function using the `family = "probit"` parameter to specify probit regression.
 
 {{< embed notebooks/prob_model_example.qmd#fig-random-intercepts >}}
 
@@ -189,12 +182,14 @@ $$
 
 where $f$ represents a smooth function estimated by the GAM.
 
+We fit the GAM using the `gam` function in the `mgcv` package in R.
+
 ### Calculating the Density of Batted Balls
 
 Finally, we need to estimate the density of batted balls $f(\theta, V)$ hit with spray angle $\theta$ and velocity $V$.
 This density is estimated using a two-dimensional kernel density estimate (KDE) based on the observed distribution of batted balls in our dataset.
 We do this using the `kde2d` function from the `ks` package in R.
-This gives us an estimate of the density of batted balls hit with different combinations of spray angle and velocity, which accounts for the frequency of different types of batted balls.
+This gives an estimate of the density of batted balls hit with different combinations of spray angle and velocity, which accounts for the frequency of different types of batted balls.
 
 ### Estimating Player SAFE Values
 
@@ -202,10 +197,11 @@ Finally, we calculate the SAFE value for each player $i$ at position $p$ in year
 For each combination of $\theta$ and $V$, we calculate the expected run value added/lost by player $i$ as:
 
 $$
-SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V)
+SAFE_{i,p,y} = \sum_{\theta} \sum_{V} PPA_{i,p,y}(\theta, V) \times \Delta_{RE}(\theta, V) \times f(\theta, V) \times N_{opp}
 $$
 
 This gives us an overall estimate of the number of runs saved or cost by player $i$ at position $p$ in year $y$ based on their defensive performance on ground balls.
+We scale this by $N\_{opp}$ to account for the number of opportunities that a player gets in a given season.
 
 {{< embed notebooks/probability_modeling.qmd#fig-safe-components >}}
 
@@ -213,39 +209,38 @@ This gives us an overall estimate of the number of runs saved or cost by player 
 We illustrate this point using Andres Gimenez, a second baseman for the Cleveland Guardians in the 2023 season.
 For simplicity, we illustrate this process using a ball hit at a fixed velocity of 90 mph.
 The top left panel shows the estimated play probability added (PPA) for Gimenez on balls hit at different spray angles.
-There are two curves one for Andres Gimenez, and another representing an average second baseman.
-The difference in these curves for a given spray angle represents the PPA for Gimenez.
+There are two curves: one for Andres Gimenez, and another representing an average second baseman.
+The difference in these curves for a given spray angle represents the $PPA$ for Gimenez.
 The top right panel shows the estimated run consequence $\Delta_{RE}$ for unsuccessful plays at different spray angles.
-The bottom left panel shows the density of batted balls $f(\theta, V)$ hit at different spray angles.
+The bottom left panel shows the density of batted balls, $f(\theta, V)$, hit at different spray angles.
 Finally, the bottom right panel shows the product of these three components and the number of opportunities, which represents the contribution to SAFE for Gimenez at each spray angle.
-This plot shows which types of plays are resulting in the most contributions to SAFE for Gimenez at a velocity of 90 mph.
+This plot shows which types of plays at 90 mph are resulting in the most contributions to SAFE for Gimenez.
 The area under this curve represents the total SAFE value for Gimenez at a velocity of 90 mph.
-In practice, we integrate over all plausible velocities to get the final SAFE value.
+We integrate over all plausible velocities to get the final SAFE value.
 
 ### Updated SAFE with Player-Specific Positioning
 
 The original SAFE model attempts to estimate the starting location of each position by using the average location of all batted balls successfully fielded by that position.
 This assumes that all players at a given position start from the same location, which is unlikely to be true in practice.
 It also assumes a direct relationship between the location of successfully fielded balls and the starting position of the fielder, which may not hold if players have different ranges or positioning strategies.
-However, with the availability of player-specific positioning data from Baseball Savant, we can improve upon this estimate by using the average positioning data for each individual player at each position.
-This allows us to capture the nuances of each player's defensive positioning, which may vary significantly from the average positioning for that position.
+However, we can improve upon this estimate by using the average positioning location for each individual player at each position using Baseball Savant.
+We believe this captures the nuances of each player's defensive positioning, which may vary significantly from the average positioning for that position.
 
-For this model extension, we follow the same model structure as before, but also incorporate the player-specific positioning data into the calculation of the distance, angle, and direction covariates.
-We propose that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball.
+For this model extension, we follow the same model structure as prior.
+We hypothesize that a more accurate estimate of individual fielding starting position will give a better estimation of distance, angle, and direction for a given batted ball.
 
 {{< embed notebooks/probability_modeling.qmd#fig-statcast-positioning >}}
 
 ## Results
 
 For each combination of position and year, we calculate the SAFE values for each player using both the original SAFE model and the updated SAFE model with player-specific positioning data.
-It's important to note that some year/position combinations did not converge and thus SAFE values could not be calculated for players in those groups.
-We focus the evaluation of our model on the production of the SAFE model without player-specific positioning.
+It's important to note that select year/position combinations did not converge and thus SAFE values could not be calculated for players in those groups.
+We focus our evaluation in this section on the SAFE model without player-specific positioning.
 We evaluate our model in two ways.
-First, we check that our model produces reasonable results by maintaining the desired result that players at more valuable positions like shortstop and second base tend to have higher SAFE values than players at less valuable positions like first base.
+
+First, we verify that our model produces reasonable results by maintaining the desired result that players at more valuable positions like shortstop and second base tend to have higher SAFE values than players at less valuable positions like first base.
 We also check that our model produces the desirable result that players with fewer opportunities tend to have SAFE values closer to zero, as they have less data to inform their estimates and should be considered close to average.
 Second, we check that our model correlates well with two established metrics, Defensive Runs Saved (DRS) and Outs Above Average (OAA), both provided by Baseball Savant.
-
-A desirable property of our SAFE metric is that it should produce results that are relatively consistent with state-of-the-art defensive metrics.
 
 ### Internal Evaluation
 
@@ -260,7 +255,7 @@ This is a desired result, as first base is generally considered a less valuable 
 
 We also see that players with fewer opportunities tend to have SAFE values closer to zero, as expected.
 Recall that we limited our analysis to players with at least 300 opportunities in a given year/position combination to ensure model convergence.
-For this reason, the effect of small sample size on SAFE values is less pronounced than it would be if we included players with far fewer opportunities.
+For this reason, the effect of small sample size on SAFE values is less pronounced than it might be if we included players with far fewer opportunities.
 
 We focus on highlighting the top 5 players at a given position.
 
@@ -268,9 +263,9 @@ We focus on highlighting the top 5 players at a given position.
 
 ### External Evaluation
 
-We compare our estimates to two state-of-the-art public defensive metrics, Defensive Runs Saved (DRS) and Outs Above Average (OAA).
-It's important to note that the SAFE metric only considers ground balls hit into fair territory, while DRS and OAA consider all batted balls.
-Also, DRS does not take an "above average" approach to run-preventation, while OAA does, but with outs instead of runs.
+We compare our estimates to two public defensive metrics, Defensive Runs Saved (DRS) and Outs Above Average (OAA).
+It's important to note that the SAFE metric only considers ground balls, while DRS and OAA consider all batted balls.
+DRS is a more comparable metric in its interpretation, as it estimates runs saved above average.
 Still, we expect that our SAFE estimates should correlate reasonably well with these established metrics.
 
 {{< embed notebooks/results.qmd#tbl-safe-correlations >}}
@@ -289,12 +284,14 @@ We found that incorporating player-specific positioning data from Baseball Savan
 In fact, the correlations, on average, were slightly worse when using player-specific positioning data.
 There were some position-specific improvements, but overall, the results were mixed.
 
+Notably, we observe that this model extension tends to over-value less important positions like first base.
+
 We show comparable results of this model extension in the supplementary materials.
 
 ## Conclusion
 
 We produced SAFE estimates for infielders from the 2023-2025 MLB seasons by reproducing and modernizing a subsection of the original SAFE framework using Statcast data.
-Although we were not able to implement the full Bayesian hierarchical probit regression model from @jensen_2009 due to computational constraints, we were able to fit a frequentist hierarchical probit regression model that produced reasonable results.
+Although we were not able to implement the full Bayesian hierarchical probit regression model from @jensen_2009 due to computational constraints, we fit a frequentist hierarchical probit regression model that produced reasonable results.
 Our results indicate that our SAFE estimates correlate reasonably well with established defensive metrics like DRS using high-resolution, publicly-available data.
 
 ### Limitations
