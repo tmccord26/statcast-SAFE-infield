@@ -3,13 +3,16 @@ library(baseballr)
 
 
 get_defensive_data <- function(year) {
-  defense <- fg_fielder_leaders(startseason = 2025, endseason = 2025)
+  defense <- fg_fielder_leaders(startseason = year, endseason = year)
   
   def_pos <- defense |>
     filter((Pos %in% c("1B", "2B", "SS", "3B"))) |>
-    select(xMLBAMID, OAA, DRS) |>
     mutate(year = !!year) |>
-    select(xMLBAMID, year, OAA, DRS)
+    rename(
+      fielder_id = xMLBAMID,
+      position = Pos
+    ) |>
+    select(fielder_id, year, position, OAA, DRS)
   
 }
 

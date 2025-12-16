@@ -25,13 +25,8 @@ safe_sc_results <- read_rds("results/sc_safe_results.rds") |>
   rename(fielder_name = name_fielder) |>
   dplyr::select(fielder_id, fielder_name, position, year, SAFE)
 
-player_OAA <- data.frame(
-  fielder_name = c("Arenado, Nolan", "Swanson, Dansby", "Giménez, Andrés", 
-                   "Henderson, Gunnar", "McMahon, Ryan", "Tovar, Ezequiel", 
-                   "Adames, Willy", "Santana, Carlos", "Hoerner, Nico", 
-                   "Hayes, Ke'Bryan"),
-  OAA_percentile = c(95, 100, 100, 49, 92, 99, 99, 78, 98, 98)
-)
+oaa_drs <- read_rds("statcast_data/oaa_drs.rds") |>
+  mutate(fielder_id = as.character(fielder_id))
 ```
 
 ## Distribution of SAFE Values
@@ -119,7 +114,78 @@ top_safe(safe_results, "1B", 2024) |>
 ```
 
 
-```{r}
+## Correlation with OAA and DRS
 
+```{r}
+#| label: tbl-safe-correlations
+#| tbl-cap: "Correlation of SAFE with OAA and DRS. Each observation is year-position specific for each fielder."
+
+safe_comparison <- safe_results |>
+  inner_join(oaa_drs, by = c("fielder_id", "year", "position"))
+
+
+safe_comparison |>
+  summarize(
+    OAA = cor(SAFE, OAA, use = "complete.obs"),
+    DRS = cor(SAFE, DRS, use = "complete.obs")
+  ) |>
+  mutate(metric = "SAFE") |>
+  select(metric, everything()) |>
+  kable(col.names = c("Metric", "OAA", "DRS")) |>
+  kable_styling(full_width = F)
+```
+
+```{r}
+#| label: tbl-safe-correlations-by-position
+#| tbl-cap: "Correlation of SAFE with OAA and DRS by Position. Each observation is year-position specific for each fielder."
+
+safe_comparison |>
+  group_by(position) |>
+  summarize(
+    OAA = cor(SAFE, OAA, use = "complete.obs"),
+    DRS = cor(SAFE, DRS, use = "complete.obs")
+  ) |>
+  kable(col.names = c("Position", "SAFE-OAA", "SAFE-DRS")) |>
+  kable_styling(full_width = F)
+```
+
+## Player-Specific Positioning Results
+
+```{r}
+safe_sc_comparison <- safe_sc_results |>
+  inner_join(oaa_drs, by = c("fielder_id", "year", "position"))
+
+ggplot(safe_sc_comparison, aes( x= SAFE, y = DRS, color = position)) +
+  geom_point(alpha = 0.6) +
+  labs(
+    title = "Correlation between SAFE (Statcast Positioning) and OAA",
+    x = "SAFE (Statcast Positioning)",
+    y = "OAA"
+  ) +
+  theme_classic()
+```
+
+```{r}
+safe_sc_comparison |>
+  summarize(
+    OAA = cor(SAFE, OAA, use = "complete.obs"),
+    DRS = cor(SAFE, DRS, use = "complete.obs")) |>
+  mutate(metric = "SAFE (Statcast Positioning)") |>
+  select(metric, everything()) |>
+  kable(col.names = c("Metric", "OAA", "DRS")) |>
+  kable_styling(full_width = F)
+
+
+```
+
+```{r}
+safe_sc_comparison |>
+  group_by(position) |>
+  summarize(
+    OAA = cor(SAFE, OAA, use = "complete.obs"),
+    DRS = cor(SAFE, DRS, use = "complete.obs")
+  ) |>
+  kable(col.names = c("Position", "SAFE (Statcast Positioning)-OAA", "SAFE (Statcast Positioning)-DRS")) |>
+  kable_styling(full_width = F)
 ```
 

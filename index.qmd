@@ -268,6 +268,53 @@ We focus on highlighting the top 5 players at a given position.
 
 ### External Evaluation
 
+We compare our estimates to two state-of-the-art public defensive metrics, Defensive Runs Saved (DRS) and Outs Above Average (OAA).
+It's important to note that the SAFE metric only considers ground balls hit into fair territory, while DRS and OAA consider all batted balls.
+Also, DRS does not take an "above average" approach to run-preventation, while OAA does, but with outs instead of runs.
+Still, we expect that our SAFE estimates should correlate reasonably well with these established metrics.
+
+{{< embed notebooks/results.qmd#tbl-safe-correlations >}}
+
+{{< embed notebooks/results.qmd#tbl-safe-correlations-by-position >}}
+
+@tbl-safe-correlations shows that our estimates correlate well with DRS, but not as well with OAA, on average.
+When breaking down the correlations by position in @tbl-safe-correlations-by-position, we notice that our estimates correlate best for second basemen, and struggle the most with first basemen.
+It's important to note that there is no "gold standard" for defensive evaluation.
+Different metrics capture different aspects of defensive performance.
+However, we believe that it's an important validation step to ensure that our estimates align reasonably well with established metrics in the field.
+
+### Note on Player-Specific Positioning Results
+
+We found that incorporating player-specific positioning data from Baseball Savant did not improve the model's performance in terms of correlation with established defensive metrics like DRS and OAA.
+In fact, the correlations, on average, were slightly worse when using player-specific positioning data.
+There were some position-specific improvements, but overall, the results were mixed.
+
+We show comparable results of this model extension in the supplementary materials.
+
+## Conclusion
+
+We produced SAFE estimates for infielders from the 2023-2025 MLB seasons by reproducing and modernizing a subsection of the original SAFE framework using Statcast data.
+Although we were not able to implement the full Bayesian hierarchical probit regression model from @jensen_2009 due to computational constraints, we were able to fit a frequentist hierarchical probit regression model that produced reasonable results.
+Our results indicate that our SAFE estimates correlate reasonably well with established defensive metrics like DRS using high-resolution, publicly-available data.
+
+### Limitations
+
+There are several limitations to our analysis that should be noted.
+First, we were not able to implement the full Bayesian hierarchical probit regression model from @jensen_2009 due to computational constraints.
+Using the adjacent frequentist approach to fit hierarchical probit regression models limited our ability to consider players with fewer opportunities, as these models struggled to converge with limited data.
+Then, the scope of our analysis was limited to infielders with at least 300 opportunities in a given year/position combination, which is roughly equivalent to an every day player.
+
+Similarly, we were not able to incorporate all relevant fixed and player-specific covariates from the original paper into our model due to convergence issues.
+We believe the the lack of some of these covariates may have limited the extent to which we were able to capture individual player defensive abilities.
+As a result, our SAFE estimates are notable underestimations of those produced by @jensen_2009.
+
+### Future Work
+
+The SAME framework combines the aspects of DRS and OAA, by considering both the difficulty of the play and the run consequences of the play.
+Still, evaluating infield defense remains an unfinished task due to the complexity of defensive performance.
+Future work could consider additional covariates about game state and baserunner personnel to better capture the context of each defensive play.
+Additionally, it is of interest to evaluate the components of infield performance separately, such as range, arm strength, and decision making.
+
 ## References {.unnumbered}
 
 ::: {#refs}
