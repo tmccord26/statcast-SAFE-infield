@@ -8,7 +8,7 @@ author:
       - Amherst College
 keywords: Sports analytics, Baseball defense, Probit regression, Hierarchical models
 abstract: |
-  High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by @jensen_2009, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics. [Placeholder for results]
+  High resolution tracking data has transformed player evaluation in Major League Baseball (MLB), enabling high-level analysis of player performance. While public analyses on batting and pitching have advanced rapidly, defensive evaluation has been comparatively underdeveloped. The SAFE (Spatially Adjusted Fielding Evaluation) framework, introduced by @jensen_2009, was the first effort in the public sphere to evaluate defense as a continuous space. We revisit the SAFE framework using modern Statcast data with an emphasis on infield defense, a notable struggle for prior defensive metrics. We reproduce the framework using hierarchical probit regression models and develop a defensive evaluation metric that exhibits modest correlations with existing publicly-available measures of defensive performance.
 date: last-modified
 bibliography: references.bib
 number-sections: true
@@ -261,6 +261,9 @@ We focus on highlighting the top 5 players at a given position.
 
 {{< embed notebooks/results.qmd#tbl-top-ss-2025 >}}
 
+@tbl-top-ss-2025 shows that Jeremy Pena was the best defender at SS in 2025 according to our SAFE estimates, saving an estimated 2.49 runs above average over the course of the season.
+Due to spatial constraints, more of these results are shown in the Appendix. 
+
 ### External Evaluation
 
 We compare our estimates to two public defensive metrics, Defensive Runs Saved (DRS) and Outs Above Average (OAA).
@@ -302,12 +305,12 @@ Using the adjacent frequentist approach to fit hierarchical probit regression mo
 Then, the scope of our analysis was limited to infielders with at least 300 opportunities in a given year/position combination, which is roughly equivalent to an every day player.
 
 Similarly, we were not able to incorporate all relevant fixed and player-specific covariates from the original paper into our model due to convergence issues.
-We believe the the lack of some of these covariates may have limited the extent to which we were able to capture individual player defensive abilities.
+We believe the the lack of some of these features may have limited the extent to which we were able to capture individual player defensive abilities.
 As a result, our SAFE estimates are notable underestimations of those produced by @jensen_2009.
 
 ### Future Work
 
-The SAME framework combines the aspects of DRS and OAA, by considering both the difficulty of the play and the run consequences of the play.
+The SAFE framework combines the aspects of DRS and OAA, by considering both the difficulty of the play and the run consequences of the play.
 Still, evaluating infield defense remains an unfinished task due to the complexity of defensive performance.
 Future work could consider additional covariates about game state and baserunner personnel to better capture the context of each defensive play.
 Additionally, it is of interest to evaluate the components of infield performance separately, such as range, arm strength, and decision making.
@@ -316,3 +319,24 @@ Additionally, it is of interest to evaluate the components of infield performanc
 
 ::: {#refs}
 :::
+
+## Appendix
+
+### Top Players by Position and Year
+
+{{< embed notebooks/results.qmd#tbl-top-2b-2025 >}}
+
+{{< embed notebooks/results.qmd#tbl-top-3b-2025 >}}
+
+{{< embed notebooks/results.qmd#tbl-top-1b-2024 >}}
+
+
+### Player-Specific Positioning SAFE Results
+
+{{< embed notebooks/results.qmd#fig-safe-sc-distribution >}}
+
+{{< embed notebooks/results.qmd#fig-safe-sc-n-opportunities >}}
+
+{{< embed notebooks/results.qmd#tbl-safe-sc-correlations >}}
+
+{{< embed notebooks/results.qmd#tbl-safe-sc-correlations-by-position >}}

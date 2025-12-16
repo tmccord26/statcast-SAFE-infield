@@ -23,7 +23,7 @@ safe_results <- read_rds("results/safe_results.rds") |>
 safe_sc_results <- read_rds("results/sc_safe_results.rds") |>
   left_join(player_id_map, by = "fielder_id") |>
   rename(fielder_name = name_fielder) |>
-  dplyr::select(fielder_id, fielder_name, position, year, SAFE)
+  dplyr::select(fielder_id, fielder_name, position, year, n_opportunities, SAFE)
 
 oaa_drs <- read_rds("statcast_data/oaa_drs.rds") |>
   mutate(fielder_id = as.character(fielder_id))
@@ -87,8 +87,8 @@ top_safe(safe_results, "SS", 2025) |>
 ```
 
 ```{r}
-#| label: fig-top-2b-2025
-#| fig-cap: "Top 5 Second Basemen by SAFE in 2025"
+#| label: tbl-top-2b-2025
+#| tbl-cap: "Top 5 Second Basemen by SAFE in 2025"
 
 top_safe(safe_results, "2B", 2025) |>
   kable(col.names = c("Fielder", "SAFE")) |>
@@ -96,8 +96,8 @@ top_safe(safe_results, "2B", 2025) |>
 ```
 
 ```{r}
-#| label: fig-top-3b-2025
-#| fig-cap: "Top 5 Third Basemen by SAFE in 2025"
+#| label: tbl-top-3b-2025
+#| tbl-cap: "Top 5 Third Basemen by SAFE in 2025"
 
 top_safe(safe_results, "3B", 2025) |>
   kable(col.names = c("Fielder", "SAFE")) |>
@@ -105,8 +105,8 @@ top_safe(safe_results, "3B", 2025) |>
 ```
 
 ```{r}
-#| label: fig-top-1b-2024
-#| fig-cap: "Top 5 First Basemen by SAFE in 2024"
+#| label: tbl-top-1b-2024
+#| tbl-cap: "Top 5 First Basemen by SAFE in 2024"
 
 top_safe(safe_results, "1B", 2024) |>
   kable(col.names = c("Fielder", "SAFE")) |>
@@ -152,20 +152,46 @@ safe_comparison |>
 ## Player-Specific Positioning Results
 
 ```{r}
-safe_sc_comparison <- safe_sc_results |>
-  inner_join(oaa_drs, by = c("fielder_id", "year", "position"))
+#| label: fig-safe-sc-distribution
+#| fig-cap: "Distribution of SAFE Values from Statcast Positioning Model by Position"
 
-ggplot(safe_sc_comparison, aes( x= SAFE, y = DRS, color = position)) +
-  geom_point(alpha = 0.6) +
+ggplot(safe_sc_results, aes(x = SAFE, color = position)) +
+  geom_density() +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
   labs(
-    title = "Correlation between SAFE (Statcast Positioning) and OAA",
+    title = "Distribution of SAFE Values from Statcast Positioning Model by Position",
     x = "SAFE (Statcast Positioning)",
-    y = "OAA"
+    y = "Density",
+    color = "Position"
   ) +
   theme_classic()
 ```
 
+
 ```{r}
+#| label: fig-safe-sc-n-opportunities
+#| fig-cap: "SAFE from Statcast Positioning vs. Number of Opportunities"
+
+safe_sc_results |>
+  ggplot(aes(x = n_opportunities, y = SAFE, color = position)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  labs(
+    x = "Number of Opportunities",
+    y = "SAFE (Statcast Positioning)",
+    color = "Position"
+  ) +
+  theme_classic()
+```
+
+
+```{r}
+#| label: tbl-safe-sc-correlations
+#| tbl-cap: "Correlation of SAFE from Statcast Positioning with OAA and DRS. Each observation is year-position specific for each fielder."
+
+safe_sc_comparison <- safe_sc_results |>
+  inner_join(oaa_drs, by = c("fielder_id", "year", "position"))
+
 safe_sc_comparison |>
   summarize(
     OAA = cor(SAFE, OAA, use = "complete.obs"),
@@ -179,6 +205,8 @@ safe_sc_comparison |>
 ```
 
 ```{r}
+#| label: tbl-safe-sc-correlations-by-position
+#| tbl-cap: "Correlation of SAFE from Statcast Positioning with OAA and DRS by Position. Each observation is year-position specific for each fielder."
 safe_sc_comparison |>
   group_by(position) |>
   summarize(
