@@ -100,8 +100,7 @@ top_safe(safe_results, "2B", 2025) |>
 #| tbl-cap: "Top 5 Third Basemen by SAFE in 2025"
 
 top_safe(safe_results, "3B", 2025) |>
-  kable(col.names = c("Fielder", "SAFE")) |>
-  kable_styling(full_width = F)
+  kable(col.names = c("Fielder", "SAFE"))
 ```
 
 ```{r}
@@ -126,8 +125,8 @@ safe_comparison <- safe_results |>
 
 safe_comparison |>
   summarize(
-    OAA = cor(SAFE, OAA, use = "complete.obs"),
-    DRS = cor(SAFE, DRS, use = "complete.obs")
+    OAA = round(cor(SAFE, OAA, use = "complete.obs"), 3),
+    DRS = round(cor(SAFE, DRS, use = "complete.obs"), 3)
   ) |>
   mutate(metric = "SAFE") |>
   select(metric, everything()) |>
@@ -142,8 +141,8 @@ safe_comparison |>
 safe_comparison |>
   group_by(position) |>
   summarize(
-    OAA = cor(SAFE, OAA, use = "complete.obs"),
-    DRS = cor(SAFE, DRS, use = "complete.obs")
+    OAA = round(cor(SAFE, OAA, use = "complete.obs"), 3),
+    DRS = round(cor(SAFE, DRS, use = "complete.obs"), 3)
   ) |>
   kable(col.names = c("Position", "SAFE-OAA", "SAFE-DRS")) |>
   kable_styling(full_width = F)
@@ -194,8 +193,8 @@ safe_sc_comparison <- safe_sc_results |>
 
 safe_sc_comparison |>
   summarize(
-    OAA = cor(SAFE, OAA, use = "complete.obs"),
-    DRS = cor(SAFE, DRS, use = "complete.obs")) |>
+    OAA = round(cor(SAFE, OAA, use = "complete.obs"), 3),
+    DRS = round(cor(SAFE, DRS, use = "complete.obs"), 3)) |>
   mutate(metric = "SAFE (Statcast Positioning)") |>
   select(metric, everything()) |>
   kable(col.names = c("Metric", "OAA", "DRS")) |>
@@ -210,8 +209,8 @@ safe_sc_comparison |>
 safe_sc_comparison |>
   group_by(position) |>
   summarize(
-    OAA = cor(SAFE, OAA, use = "complete.obs"),
-    DRS = cor(SAFE, DRS, use = "complete.obs")
+    OAA = round(cor(SAFE, OAA, use = "complete.obs"), 3),
+    DRS = round(cor(SAFE, DRS, use = "complete.obs"), 3)
   ) |>
   kable(col.names = c("Position", "SAFE (Statcast Positioning)-OAA", "SAFE (Statcast Positioning)-DRS")) |>
   kable_styling(full_width = F)

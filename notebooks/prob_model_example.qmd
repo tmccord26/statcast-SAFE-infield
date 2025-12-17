@@ -49,7 +49,7 @@ players_num_plays <- bip_gb_ss_2025 |>
   group_by(fielder_id) |>
   summarise(num_plays = n()) |>
   arrange(num_plays) |>
-  filter(num_plays >= 350) |>
+  filter(num_plays >= 300) |>
   pluck("fielder_id")
 
 bip_gb_ss_2025 <- bip_gb_ss_2025 |>
