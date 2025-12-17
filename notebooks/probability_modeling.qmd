@@ -431,7 +431,7 @@ gimenez_probs <- gimenez_2023_safe$player_probs[["665926"]]
 
 ```{r}
 #| label: fig-safe-components
-#| fig-cap: "Components of SAFE Metric for Andrés Giménez (2023) at 90 mph Launch Speed"
+#| fig-cap: "Components of SAFE Metric for Andrés Giménez (2023) at 90 mph Launch Speed. Grey dashed line represents the average positioning for a 2B."
 
 p_gimenez_probs <- gimenez_probs |>
   filter(launch_speed == 90) |>

@@ -94,8 +94,8 @@ fielder_effects <- data.frame(
 ```{r}
 #| label: fig-random-intercepts
 #| fig-cap: "Random Intercepts for SS Fielders in 2025 with 95% Confidence Intervals"
-#| fig-width: 3
-#| fig-height: 3
+#| fig-width: 3.5
+#| fig-height: 3.5
 
 ggplot(fielder_effects, aes(x = reorder(fielder_id, random_intercept), y = random_intercept)) +
   geom_point() +
@@ -103,7 +103,6 @@ ggplot(fielder_effects, aes(x = reorder(fielder_id, random_intercept), y = rando
   coord_flip() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
   labs(
-    title = "Random Intercepts for SS Fielders with 95% CI",
     x = "Fielder ID",
     y = "Random Intercept (u_i)"
   ) +
@@ -125,7 +124,6 @@ ggplot(fielder_effects, aes(x = reorder(fielder_id, random_theta), y = random_th
   coord_flip() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
   labs(
-    title = "Random Slopes for Theta SS Fielders with 95% CI",
     x = "Fielder ID",
     y = "Random Slope (u_theta)"
   ) +
